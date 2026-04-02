@@ -852,8 +852,8 @@ a { color: inherit; }
   .container { padding: 0 16px; }
   .nav-inner { padding: 0 12px; gap: 8px; }
   .nav-right { gap: 6px; }
-  .btn-cart span:not(.cart-count), .btn-auth-nav span, .open-status span { display: none; }
-  .btn-cart, .btn-auth-nav { padding: 8px 12px; }
+  .btn-cart span:not(.cart-count), .btn-auth-nav span, .open-status span, .user-nav-name { display: none; }
+  .btn-cart, .btn-auth-nav, .btn-user-nav { padding: 8px 12px; }
   .footer-inner { flex-direction: column; text-align: center; gap: 20px; }
 }
 
