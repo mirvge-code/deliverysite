@@ -218,11 +218,13 @@ def register():
     if q("SELECT id FROM users WHERE username=?", (user,)).fetchone(): return jsonify({'error': 'Логин занят'}), 409
     salt = secrets.token_hex(16)
     h = _hash_password(pw, salt)
-    cur = q("INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES (?,?,?,?)", (user, full, h, salt))
-    uid = getattr(cur, 'lastrowid', None) or cur.fetchone().get('id') if getattr(g, 'is_pg', False) else cur.lastrowid
-    if getattr(g, 'is_pg', False): # Handle serial return in PG if needed, but lastrowid is enough for simple cases
-        db.commit() # pg needs commit
-    else: db.commit()
+    if getattr(g, 'is_pg', False):
+        cur = q("INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES (?,?,?,?) RETURNING id", (user, full, h, salt))
+        uid = cur.fetchone()['id']
+    else:
+        cur = q("INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES (?,?,?,?)", (user, full, h, salt))
+        uid = cur.lastrowid
+    commit()
     t = _make_token(uid, user, 'client')
     r = make_response(jsonify({'ok': True, 'username': user, 'role': 'client'}))
     r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/')
