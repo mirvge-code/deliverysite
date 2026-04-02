@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "name": "seychasye-food-delivery",
+  "builds": [
+    {
+      "src": "server/app.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "server/app.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "public/$1"
+    }
+  ]
+}
