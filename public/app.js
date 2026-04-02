@@ -822,8 +822,6 @@ const adminUI = {
     this.startClock();
     this.renderActiveTab();
     this.fillSettingsForm();
-    
-    showToast('🚀 Панель управления открыта');
   },
 
   close() {
@@ -1311,6 +1309,7 @@ $('cartBtn').addEventListener('click',openCart);
 $('closeCart').addEventListener('click',closeCart);
 $('adminCloseBtn')?.addEventListener('click', () => adminUI.close());
 $('checkoutBtn').addEventListener('click',openCheckout);
+$('adminLogout')?.addEventListener('click', doLogout);
 $('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); });
 
 document.querySelector('.filter-btn[data-cat="all"]').addEventListener('click',function(){
