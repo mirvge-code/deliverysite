@@ -22,7 +22,8 @@
 <nav class="nav" id="nav" role="navigation" aria-label="Основная навигация">
   <div class="nav-inner">
     <a href="#" class="logo" aria-label="Сейчастье — на главную">Сейчастье<span class="logo-dot">.</span></a>
-    <ul class="nav-links" id="navLinks">
+    <!-- Main links for desktop; will be hidden on mobile -->
+    <ul class="nav-links desktop-links">
       <li><a href="#menu-section">Меню</a></li>
       <li><a href="#about">О нас</a></li>
       <li><a href="#contact">Контакты</a></li>
@@ -47,6 +48,19 @@
     </div>
   </div>
 </nav>
+
+<!-- MOBILE DRAWER (Level 2 Hierarchical Menu) -->
+<ul class="nav-links-mobile" id="navLinks">
+  <li class="has-submenu">
+    <a href="javascript:void(0)" onclick="toggleMobileSub(event)">🍔 Наше меню <span class="chevron">▼</span></a>
+    <ul class="mobile-submenu" id="mobileCatList">
+      <!-- Dynamically filled with categories -->
+    </ul>
+  </li>
+  <li><a href="#about" onclick="closeMenu()">⭐ О нас</a></li>
+  <li><a href="#reviews" onclick="closeMenu()">💬 Отзывы</a></li>
+  <li><a href="#contact" onclick="closeMenu()">📞 Контакты</a></li>
+</ul>
 
 <!-- HERO -->
 <section class="hero" id="hero">
