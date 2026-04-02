@@ -570,7 +570,11 @@ a { color: inherit; }
 .tracking-eta { text-align: center; font-size: 1rem; color: var(--gray); margin-bottom: 24px; }
 
 /* ===== AUTH MODAL ===== */
-.auth-card { padding: 0 !important; overflow: hidden; }
+.auth-card { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+.auth-logo, .forgot-icon { font-size: 3rem; text-align: center; margin-top: 40px; margin-bottom: 10px; line-height: 1; }
+.auth-title { text-align: center; font-family: 'Bebas Neue', cursive; font-size: 2rem; letter-spacing: 1px; color: var(--dark); margin-bottom: 4px; }
+.auth-sub { text-align: center; font-size: 0.9rem; color: var(--gray); margin-bottom: 24px; font-weight: 600; }
+
 .auth-tabs { display: flex; border-bottom: 1px solid #eee; }
 .auth-tab {
   flex: 1; padding: 18px; text-align: center; border: none; background: none;
