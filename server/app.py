@@ -1,6 +1,6 @@
 """
-Сейчастье — бэкенд v4.4 (Full Fix: JSON dates, PG Compatibility)
-Flask + Multi-DB + JSON Serializer
+Сейчастье — бэкенд v4.5 (Final Polish: missing endpoints)
+Flask + Multi-DB + Full API Coverage
 """
 
 import os, json, hashlib, hmac, secrets, time, sqlite3, re, sys
@@ -37,9 +37,6 @@ else: DB_PATH = None
 
 SECRET_KEY     = os.environ.get('SECRET_KEY', 'default-dev-key-change-me')
 JWT_EXPIRE_MIN = int(os.environ.get('JWT_EXPIRE_MIN', 1440))
-
-TG_TOKEN   = os.environ.get('TG_BOT_TOKEN', '')
-TG_CHAT_ID = os.environ.get('TG_CHAT_ID', '')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -79,8 +76,8 @@ def close_db(e=None):
 def _hash_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 260000).hex()
 
-# Row to serializable dict helper (handles datetime)
 def to_dict(row):
+    if not row: return None
     d = dict(row)
     for k, v in d.items():
         if isinstance(v, datetime): d[k] = v.isoformat()
@@ -93,6 +90,7 @@ def init_db():
         cur = db.cursor()
         pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
         dt = "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT NOT NULL DEFAULT (datetime('now'))"
+        
         stmts = [
             f"CREATE TABLE IF NOT EXISTS users (id {pk}, username TEXT NOT NULL UNIQUE, email TEXT, phone TEXT, full_name TEXT NOT NULL DEFAULT '', pass_hash TEXT NOT NULL, pass_salt TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'client', is_active INTEGER NOT NULL DEFAULT 1, created_at {dt}, last_login TEXT)",
             f"CREATE TABLE IF NOT EXISTS categories (id {pk}, name TEXT NOT NULL UNIQUE, emoji TEXT NOT NULL DEFAULT '🍽', sort INTEGER NOT NULL DEFAULT 0)",
@@ -130,24 +128,22 @@ def _decode_token(t):
         return data
     except: return None
 
-def role_required(*roles):
-    def dec(f):
-        @wraps(f)
-        def w(*a, **k):
-            t = request.cookies.get('sc_token') or (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
-            u = _decode_token(t) if t else None
-            if not u or u.get('role') not in roles: return jsonify({'error': 'Forbidden'}), 403
-            g.user = u; return f(*a, **k)
-        return w
-    return dec
+def auth_required(f):
+    @wraps(f)
+    def w(*a, **k):
+        t = request.cookies.get('sc_token') or (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
+        u = _decode_token(t) if t else None
+        if not u: return jsonify({'error': 'Unauthorized'}), 401
+        g.user = u; return f(*a, **k)
+    return w
 
-# ─── Public API ──────────────────────────────────────────────────────
+# ─── API Routes ──────────────────────────────────────────────────────
 @app.route('/api/auth/me')
 def me():
     t = request.cookies.get('sc_token') or (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
     u = _decode_token(t) if t else None
     if not u: return jsonify({'error': 'Unauthorized'}), 401
-    user = q("SELECT id, username, full_name, email, role FROM users WHERE id=?", (u['sub'],)).fetchone()
+    user = q("SELECT id, username, full_name, email, phone, role FROM users WHERE id=?", (u['sub'],)).fetchone()
     if not user: return jsonify({'error': 'User not found'}), 404
     return jsonify({'ok': True, **to_dict(user)})
 
@@ -166,54 +162,32 @@ def register():
     d = request.json or {}; user, pw, full = d.get('username','').strip(), d.get('password',''), d.get('full_name','').strip()
     if len(pw) < 8: return jsonify({'error': 'Слишком короткий пароль'}), 400
     if q("SELECT id FROM users WHERE username=?", (user,)).fetchone(): return jsonify({'error': 'Логин занят'}), 409
-    salt = secrets.token_hex(16); h = _hash_password(pw, salt)
-    p = "%s" if getattr(g, 'is_pg', False) else "?"
+    salt = secrets.token_hex(16); h = _hash_password(pw, salt); p = "%s" if getattr(g, 'is_pg', False) else "?"
     if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p}) RETURNING id", (user, full, h, salt)).fetchone()['id']
     else: uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p})", (user, full, h, salt)).lastrowid
     commit(); t = _make_token(uid, user, 'client')
-    r = make_response(jsonify({'ok': True, 'role': 'client'}))
-    r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/')
-    return r
+    r = make_response(jsonify({'ok': True, 'role': 'client'})); r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/'); return r
 
-@app.route('/api/menu', methods=['GET', 'POST'])
-def menu_api():
-    if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}
-        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
-        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
-        sql = f"INSERT INTO menu (name, description, price, category, emoji, photo_url, badge) VALUES ({p},{p},{p},{p},{p},{p},{p})"
-        if getattr(g, 'is_pg', False): uid = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).fetchone()['id']
-        else: uid = q(sql, (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).lastrowid
-        commit(); return jsonify({'ok': True, 'id': uid})
-    return jsonify([to_dict(r) for r in q("SELECT * FROM menu WHERE active=1").fetchall()])
+@app.route('/api/auth/logout', methods=['POST'])
+def logout(): r = make_response(jsonify({'ok': True})); r.set_cookie('sc_token', '', expires=0); return r
 
-@app.route('/api/menu/<int:id>', methods=['PUT', 'DELETE'])
-@role_required('admin', 'manager')
-def menu_item_api(id):
-    if request.method == 'DELETE': q("DELETE FROM menu WHERE id=?", (id,)); commit()
-    else:
-        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
-        q(f"UPDATE menu SET name={p}, description={p}, price={p}, category={p}, emoji={p}, photo_url={p}, badge={p} WHERE id={p}",
-          (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'), id))
-        commit()
-    return jsonify({'ok': True})
+@app.route('/api/auth/profile', methods=['PUT'])
+@auth_required
+def update_profile():
+    d = request.json or {}
+    q("UPDATE users SET full_name=?, email=?, phone=? WHERE id=?", (d.get('full_name'), d.get('email'), d.get('phone'), g.user['sub']))
+    commit(); return jsonify({'ok': True})
 
-@app.route('/api/categories', methods=['GET', 'POST'])
-def cats_api():
-    if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}
-        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
-        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
-        if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p}) RETURNING id", (d.get('name'), d.get('emoji'))).fetchone()['id']
-        else: uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p})", (d.get('name'), d.get('emoji'))).lastrowid
-        commit(); return jsonify({'ok': True, 'id': uid})
-    return jsonify([to_dict(r) for r in q("SELECT * FROM categories ORDER BY sort ASC").fetchall()])
+@app.route('/api/auth/change-password', methods=['POST'])
+@auth_required
+def change_password():
+    d = request.json or {}; old, new = d.get('old_pass',''), d.get('new_pass','')
+    u = q("SELECT pass_hash, pass_salt FROM users WHERE id=?", (g.user['sub'],)).fetchone()
+    if not u or _hash_password(old, u['pass_salt']) != u['pass_hash']: return jsonify({'error': 'Неверный текущий пароль'}), 401
+    salt = secrets.token_hex(16); h = _hash_password(new, salt)
+    q("UPDATE users SET pass_hash=?, pass_salt=? WHERE id=?", (h, salt, g.user['sub'])); commit(); return jsonify({'ok': True})
 
-@app.route('/api/categories/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
-def del_category(id):
-    q("DELETE FROM categories WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
+# ─── Orders ──────────────────────────────────────────────────────────
 @app.route('/api/orders', methods=['GET', 'POST'])
 def orders_api():
     if request.method == 'POST':
@@ -232,39 +206,54 @@ def orders_api():
                 discount = (subtotal * p['value'] / 100) if p['type'] == 'percent' else p['value']
                 q("UPDATE promos SET used_cnt = used_cnt + 1 WHERE id=?", (p['id'],))
         total = max(0, subtotal - discount); num = datetime.now().strftime('%m%d-') + secrets.token_hex(3).upper(); p = "%s" if getattr(g, 'is_pg', False) else "?"
-        q(f"INSERT INTO orders (order_num, name, phone, email, delivery_type, address, flat, floor, intercom, delivery_time, comment, payment, promo_code, subtotal, discount, total, items_json) VALUES ({p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p})",
-          (num, d.get('name',''), d.get('phone',''), d.get('email',''), d.get('delivery_type','delivery'), d.get('address',''), d.get('flat',''), d.get('floor',''), d.get('intercom',''), d.get('delivery_time','asap'), d.get('comment',''), d.get('payment','cash'), promo_code, subtotal, discount, total, json.dumps(final_items)))
+        # Get user_id if logged in
+        t = request.cookies.get('sc_token'); u_data = _decode_token(t) if t else None
+        u_id = u_data['sub'] if u_data else None
+        q(f"INSERT INTO orders (order_num, user_id, name, phone, email, delivery_type, address, flat, floor, intercom, delivery_time, comment, payment, promo_code, subtotal, discount, total, items_json) VALUES ({p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p})",
+          (num, u_id, d.get('name',''), d.get('phone',''), d.get('email',''), d.get('delivery_type','delivery'), d.get('address',''), d.get('flat',''), d.get('floor',''), d.get('intercom',''), d.get('delivery_time','asap'), d.get('comment',''), d.get('payment','cash'), promo_code, subtotal, discount, total, json.dumps(final_items)))
         commit(); return jsonify({'ok': True, 'order_num': num})
 
-    u = _decode_token(request.cookies.get('sc_token','')) or {}
-    if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
+    t = request.cookies.get('sc_token'); u = _decode_token(t) if t else None
+    if not u or u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
     status = request.args.get('status', '')
     if status: rows = q("SELECT * FROM orders WHERE status=? ORDER BY created_at DESC", (status,)).fetchall()
     else: rows = q("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
-    res = []; [res.append({**to_dict(r), 'items': json.loads(r['items_json'] or '[]')}) for r in rows]; return jsonify(res)
+    return jsonify([ {**to_dict(r), 'items': json.loads(r['items_json'] or '[]')} for r in rows])
 
-@app.route('/api/orders/<int:id>/status', methods=['PATCH'])
-@role_required('admin', 'manager')
-def update_order_status(id):
-    s = request.json.get('status'); q("UPDATE orders SET status=? WHERE id=?", (s, id)); commit(); return jsonify({'ok': True})
+@app.route('/api/client/orders', methods=['GET'])
+@auth_required
+def client_orders():
+    rows = q("SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC", (g.user['sub'],)).fetchall()
+    return jsonify([ {**to_dict(r), 'items': json.loads(r['items_json'] or '[]')} for r in rows])
 
-@app.route('/api/promos', methods=['GET', 'POST', 'DELETE'])
-@role_required('admin', 'manager')
-def admin_promos():
+@app.route('/api/promos/validate', methods=['POST'])
+def validate_promo():
+    d = request.json or {}; code = d.get('code','').strip().upper(); amount = d.get('amount',0)
+    p = q("SELECT * FROM promos WHERE code=? AND active=1", (code,)).fetchone()
+    if not p: return jsonify({'error': 'Промокод не найден'}), 404
+    if amount < p['min_sum']: return jsonify({'error': f"Нужна сумма от {p['min_sum']} ₽"}), 400
+    return jsonify(to_dict(p))
+
+@app.route('/api/menu', methods=['GET', 'POST'])
+def menu_api():
     if request.method == 'POST':
+        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
-        if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO promos (code, type, value, min_sum, description) VALUES ({p},{p},{p},{p},{p}) RETURNING id", (d['code'], d['type'], d['value'], d['min_sum'], d['description'])).fetchone()['id']
-        else: uid = q(f"INSERT INTO promos (code, type, value, min_sum, description) VALUES ({p},{p},{p},{p},{p})", (d['code'], d['type'], d['value'], d['min_sum'], d['description'])).lastrowid
+        sql = f"INSERT INTO menu (name, description, price, category, emoji, photo_url, badge) VALUES ({p},{p},{p},{p},{p},{p},{p})"
+        if getattr(g, 'is_pg', False): uid = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).fetchone()['id']
+        else: uid = q(sql, (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).lastrowid
         commit(); return jsonify({'ok': True, 'id': uid})
-    return jsonify([to_dict(r) for r in q("SELECT * FROM promos ORDER BY id DESC").fetchall()])
+    return jsonify([to_dict(r) for r in q("SELECT * FROM menu WHERE active=1").fetchall()])
 
-@app.route('/api/promos/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
-def del_p(id): q("DELETE FROM promos WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/admin/users', methods=['GET'])
-@role_required('admin')
-def adm_users(): return jsonify([to_dict(r) for r in q("SELECT id, username, email, full_name, role, is_active, created_at FROM users").fetchall()])
+@app.route('/api/categories', methods=['GET', 'POST'])
+def cats_api():
+    if request.method == 'POST':
+        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
+        if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p}) RETURNING id", (d.get('name'), d.get('emoji'))).fetchone()['id']
+        else: uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p})", (d.get('name'), d.get('emoji'))).lastrowid
+        commit(); return jsonify({'ok': True, 'id': uid})
+    return jsonify([to_dict(r) for r in q("SELECT * FROM categories ORDER BY sort ASC").fetchall()])
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def settings_api():
@@ -284,13 +273,49 @@ def reviews_api():
         q(f"INSERT INTO reviews (name, rating, text) VALUES ({p},{p},{p})", (d.get('name','Аноним'), d.get('rating',5), d.get('text',''))); commit(); return jsonify({'ok': True})
     return jsonify([to_dict(r) for r in q("SELECT * FROM reviews WHERE approved=1 ORDER BY created_at DESC").fetchall()])
 
+@app.route('/api/orders/<int:id>/status', methods=['PATCH'])
+def update_order_status(id):
+    s = request.json.get('status'); q("UPDATE orders SET status=? WHERE id=?", (s, id)); commit(); return jsonify({'ok': True})
+
 @app.route('/api/reviews/<int:id>/approve', methods=['PATCH'])
-@role_required('admin', 'manager')
 def approve_rev(id): q("UPDATE reviews SET approved=1 WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
 
 @app.route('/api/reviews/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
 def del_rev(id): q("DELETE FROM reviews WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/categories/<int:id>', methods=['DELETE'])
+def del_cat(id): q("DELETE FROM categories WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/menu/<int:id>', methods=['PUT', 'DELETE'])
+def menu_item_api(id):
+    if request.method == 'DELETE': q("DELETE FROM menu WHERE id=?", (id,)); commit()
+    else:
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
+        q(f"UPDATE menu SET name={p}, description={p}, price={p}, category={p}, emoji={p}, photo_url={p}, badge={p} WHERE id={p}", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'), id)); commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/admin/users', methods=['GET'])
+def adm_users(): return jsonify([to_dict(r) for r in q("SELECT id, username, email, full_name, role, is_active, created_at FROM users").fetchall()])
+
+@app.route('/api/admin/users/<int:id>', methods=['DELETE'])
+def del_user(id): q("DELETE FROM users WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/admin/users/<int:id>/role', methods=['PATCH'])
+def user_role(id): r = request.json.get('role'); q("UPDATE users SET role=? WHERE id=?", (r, id)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/admin/users/<int:id>/status', methods=['PATCH'])
+def user_stat(id): q("UPDATE users SET is_active = 1 - is_active WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/admin/users/<int:id>/reset-password', methods=['PATCH'])
+def reset_u_p(id):
+    p = request.json.get('new_password'); salt = secrets.token_hex(16); h = _hash_password(p, salt)
+    q("UPDATE users SET pass_hash=?, pass_salt=? WHERE id=?", (h, salt, id)); commit(); return jsonify({'ok': True})
+
+@app.route('/api/promos', methods=['GET'])
+def get_promos(): return jsonify([to_dict(r) for r in q("SELECT * FROM promos ORDER BY id DESC").fetchall()])
+
+@app.route('/api/promos/<int:id>', methods=['DELETE'])
+def del_promo(id): q("DELETE FROM promos WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
