@@ -1,6 +1,6 @@
 """
-Сейчастье — бэкенд v4.2 (Full Feature Admin & Public API)
-Flask + Multi-DB + Full RBAC
+Сейчастье — бэкенд v4.3 (Order Fix + Multi-DB)
+Flask + Multi-DB + Robust Order Logic
 """
 
 import os, json, hashlib, hmac, secrets, time, sqlite3, re, sys
@@ -14,12 +14,6 @@ try:
     HAS_URLLIB = True
 except Exception:
     HAS_URLLIB = False
-
-try:
-    import jwt as pyjwt
-    HAS_JWT = True
-except Exception:
-    HAS_JWT = False
 
 try:
     import psycopg2
@@ -107,12 +101,6 @@ def init_db():
         ]
         for s in stmts: cur.execute(s)
         db.commit()
-        p = "%s" if is_pg else "?"
-        cur.execute(f"SELECT id FROM users WHERE username={p}", ('admin',))
-        if not cur.fetchone():
-            salt = secrets.token_hex(16); h = _hash_password('admin123', salt)
-            cur.execute(f"INSERT INTO users (username, pass_hash, pass_salt, role, full_name) VALUES ({p},{p},{p},{p},{p})", ('admin', h, salt, 'admin', 'Администратор'))
-        db.commit()
     finally: db.close()
 
 try: init_db()
@@ -161,12 +149,14 @@ def role_required(*roles):
 # ─── Public API ──────────────────────────────────────────────────────
 @app.route('/api/auth/me')
 @auth_required
-def me(): return jsonify({'ok': True, **g.user})
+def me():
+    u = q("SELECT id, username, email, full_name, role FROM users WHERE id=?", (g.user['sub'],)).fetchone()
+    if not u: return jsonify({'error': 'User not found'}), 404
+    return jsonify({'ok': True, **dict(u)})
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    d = request.json or {}
-    user, pw = d.get('username','').strip(), d.get('password','')
+    d = request.json or {}; user, pw = d.get('username','').strip(), d.get('password','')
     u = q("SELECT * FROM users WHERE username=? OR email=?", (user, user)).fetchone()
     if not u or _hash_password(pw, u['pass_salt']) != u['pass_hash']: return jsonify({'error': 'Неверный логин'}), 401
     t = _make_token(u['id'], u['username'], u['role'])
@@ -176,18 +166,14 @@ def login():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    d = request.json or {}
-    user, pw, full = d.get('username','').strip(), d.get('password',''), d.get('full_name','').strip()
+    d = request.json or {}; user, pw, full = d.get('username','').strip(), d.get('password',''), d.get('full_name','').strip()
     if len(pw) < 8: return jsonify({'error': 'Слишком короткий пароль'}), 400
     if q("SELECT id FROM users WHERE username=?", (user,)).fetchone(): return jsonify({'error': 'Логин занят'}), 409
     salt = secrets.token_hex(16); h = _hash_password(pw, salt)
     p = "%s" if getattr(g, 'is_pg', False) else "?"
     if getattr(g, 'is_pg', False):
-        cur = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p}) RETURNING id", (user, full, h, salt))
-        uid = cur.fetchone()['id']
-    else:
-        cur = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p})", (user, full, h, salt))
-        uid = cur.lastrowid
+        uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p}) RETURNING id", (user, full, h, salt)).fetchone()['id']
+    else: uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({p},{p},{p},{p})", (user, full, h, salt)).lastrowid
     commit(); t = _make_token(uid, user, 'client')
     r = make_response(jsonify({'ok': True, 'role': 'client'}))
     r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/')
@@ -195,153 +181,98 @@ def register():
 
 @app.route('/api/menu', methods=['GET', 'POST'])
 def menu_api():
-    if request.method == 'POST': # Admin POST
+    if request.method == 'POST':
         u = _decode_token(request.cookies.get('sc_token','')) or {}
         if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
-        d = request.json or {}
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
         sql = f"INSERT INTO menu (name, description, price, category, emoji, photo_url, badge) VALUES ({p},{p},{p},{p},{p},{p},{p})"
-        if getattr(g, 'is_pg', False):
-            cur = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge')))
-            uid = cur.fetchone()['id']
-        else:
-            cur = q(sql, (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge')))
-            uid = cur.lastrowid
-        commit(); return jsonify({'ok': True, 'id': uid, **d})
-    rows = q("SELECT * FROM menu WHERE active=1").fetchall()
-    return jsonify([dict(r) for r in rows])
+        if getattr(g, 'is_pg', False): uid = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).fetchone()['id']
+        else: uid = q(sql, (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).lastrowid
+        commit(); return jsonify({'ok': True, 'id': uid})
+    return jsonify([dict(r) for r in q("SELECT * FROM menu WHERE active=1").fetchall()])
 
 @app.route('/api/menu/<int:id>', methods=['PUT', 'DELETE'])
 @role_required('admin', 'manager')
 def menu_item_api(id):
-    if request.method == 'DELETE':
-        q("DELETE FROM menu WHERE id=?", (id,)); commit()
+    if request.method == 'DELETE': q("DELETE FROM menu WHERE id=?", (id,)); commit()
     else:
-        d = request.json or {}
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
         q(f"UPDATE menu SET name={p}, description={p}, price={p}, category={p}, emoji={p}, photo_url={p}, badge={p} WHERE id={p}",
           (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'), id))
         commit()
     return jsonify({'ok': True})
 
 @app.route('/api/categories', methods=['GET', 'POST'])
-def categories_api():
+def cats_api():
     if request.method == 'POST':
         u = _decode_token(request.cookies.get('sc_token','')) or {}
         if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
-        d = request.json or {}
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
-        if getattr(g, 'is_pg', False):
-            cur = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p}) RETURNING id", (d.get('name'), d.get('emoji')))
-            uid = cur.fetchone()['id']
-        else:
-            cur = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p})", (d.get('name'), d.get('emoji')))
-            uid = cur.lastrowid
-        commit(); return jsonify({'ok': True, 'id': uid, **d})
-    rows = q("SELECT * FROM categories ORDER BY sort ASC").fetchall()
-    return jsonify([dict(r) for r in rows])
-
-@app.route('/api/categories/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
-def del_category(id):
-    q("DELETE FROM categories WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/reviews', methods=['GET', 'POST'])
-def reviews_api():
-    if request.method == 'POST':
-        d = request.json or {}
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
-        q(f"INSERT INTO reviews (name, rating, text) VALUES ({p},{p},{p})", (d.get('name','Аноним'), d.get('rating',5), d.get('text','')))
-        commit(); return jsonify({'ok': True})
-    rows = q("SELECT * FROM reviews WHERE approved=1 ORDER BY created_at DESC").fetchall()
-    return jsonify([dict(r) for r in rows])
-
-@app.route('/api/reviews/<int:id>/approve', methods=['PATCH'])
-@role_required('admin', 'manager')
-def approve_review(id):
-    q("UPDATE reviews SET approved=1 WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/reviews/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
-def delete_review(id):
-    q("DELETE FROM reviews WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
+        if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p}) RETURNING id", (d.get('name'), d.get('emoji'))).fetchone()['id']
+        else: uid = q(f"INSERT INTO categories (name, emoji) VALUES ({p},{p})", (d.get('name'), d.get('emoji'))).lastrowid
+        commit(); return jsonify({'ok': True, 'id': uid})
+    return jsonify([dict(r) for r in q("SELECT * FROM categories ORDER BY sort ASC").fetchall()])
 
 @app.route('/api/orders', methods=['GET', 'POST'])
 def orders_api():
     if request.method == 'POST':
-        d = request.json or {}
+        d = request.json or {}; items = d.get('items', [])
+        if not items: return jsonify({'error': 'Basket is empty'}), 400
+        
+        # Calculate subtotal on backend
+        subtotal = 0; final_items = []
+        for i in items:
+            it = q("SELECT name, price FROM menu WHERE id=?", (i['id'],)).fetchone()
+            if it:
+                price = it['price'] if getattr(g, 'is_pg', False) else it['price']
+                subtotal += price * i['qty']
+                final_items.append({'id': i['id'], 'name': it['name'], 'price': price, 'qty': i['qty']})
+        
+        # Promo
+        discount = 0; promo_code = d.get('promo_code', '').strip().upper()
+        if promo_code:
+            p = q("SELECT * FROM promos WHERE code=? AND active=1", (promo_code,)).fetchone()
+            if p and subtotal >= p['min_sum']:
+                discount = (subtotal * p['value'] / 100) if p['type'] == 'percent' else p['value']
+                q("UPDATE promos SET used_cnt = used_cnt + 1 WHERE id=?", (p['id'],))
+        
+        total = max(0, subtotal - discount)
         num = datetime.now().strftime('%m%d-') + secrets.token_hex(3).upper()
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
-        q(f"INSERT INTO orders (order_num, name, phone, address, total, items_json) VALUES ({p},{p},{p},{p},{p},{p})",
-          (num, d.get('name',''), d.get('phone',''), d.get('address',''), d.get('total',0), json.dumps(d.get('items',[]))))
+        p_mark = "%s" if getattr(g, 'is_pg', False) else "?"
+        
+        q(f"INSERT INTO orders (order_num, name, phone, email, delivery_type, address, flat, floor, intercom, delivery_time, comment, payment, promo_code, subtotal, discount, total, items_json) VALUES ({p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark},{p_mark})",
+          (num, d.get('name',''), d.get('phone',''), d.get('email',''), d.get('delivery_type','delivery'), d.get('address',''), 
+           d.get('flat',''), d.get('floor',''), d.get('intercom',''), d.get('delivery_time','asap'), d.get('comment',''), 
+           d.get('payment','cash'), promo_code, subtotal, discount, total, json.dumps(final_items)))
         commit(); return jsonify({'ok': True, 'order_num': num})
-    
+
     u = _decode_token(request.cookies.get('sc_token','')) or {}
     if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
     status = request.args.get('status', '')
-    if status:
-        rows = q("SELECT * FROM orders WHERE status=? ORDER BY created_at DESC", (status,)).fetchall()
-    else:
-        rows = q("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
-    res = []
-    for r in rows:
-        d = dict(r); d['items'] = json.loads(d.get('items_json','[]')); res.append(d)
-    return jsonify(res)
+    if status: rows = q("SELECT * FROM orders WHERE status=? ORDER BY created_at DESC", (status,)).fetchall()
+    else: rows = q("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+    res = []; [res.append({**dict(r), 'items': json.loads(r['items_json'] or '[]')}) for r in rows]; return jsonify(res)
 
 @app.route('/api/orders/<int:id>/status', methods=['PATCH'])
 @role_required('admin', 'manager')
 def update_order_status(id):
-    s = request.json.get('status')
-    q("UPDATE orders SET status=? WHERE id=?", (s, id)); commit(); return jsonify({'ok': True})
+    s = request.json.get('status'); q("UPDATE orders SET status=? WHERE id=?", (s, id)); commit(); return jsonify({'ok': True})
 
 @app.route('/api/promos', methods=['GET', 'POST'])
-@role_required('admin', 'manager')
 def promos_api():
     if request.method == 'POST':
-        d = request.json or {}
-        p = "%s" if getattr(g, 'is_pg', False) else "?"
-        sql = f"INSERT INTO promos (code, type, value, min_sum, description) VALUES ({p},{p},{p},{p},{p})"
-        if getattr(g, 'is_pg', False):
-            cur = q(sql + " RETURNING id", (d['code'], d['type'], d['value'], d['min_sum'], d['description']))
-            uid = cur.fetchone()['id']
-        else:
-            cur = q(sql, (d['code'], d['type'], d['value'], d['min_sum'], d['description']))
-            uid = cur.lastrowid
+        u = _decode_token(request.cookies.get('sc_token','')) or {}
+        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
+        if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO promos (code, type, value, min_sum, description) VALUES ({p},{p},{p},{p},{p}) RETURNING id", (d['code'], d['type'], d['value'], d['min_sum'], d['description'])).fetchone()['id']
+        else: uid = q(f"INSERT INTO promos (code, type, value, min_sum, description) VALUES ({p},{p},{p},{p},{p})", (d['code'], d['type'], d['value'], d['min_sum'], d['description'])).lastrowid
         commit(); return jsonify({'ok': True, 'id': uid})
-    rows = q("SELECT * FROM promos ORDER BY created_at DESC").fetchall() if getattr(g,'is_pg',False) else q("SELECT * FROM promos ORDER BY id DESC").fetchall()
-    return jsonify([dict(r) for r in rows])
-
-@app.route('/api/promos/<int:id>', methods=['DELETE'])
-@role_required('admin', 'manager')
-def del_promo(id):
-    q("DELETE FROM promos WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
+    return jsonify([dict(r) for r in q("SELECT * FROM promos ORDER BY id DESC").fetchall()])
 
 @app.route('/api/admin/users', methods=['GET'])
 @role_required('admin')
 def admin_users():
-    rows = q("SELECT id, username, email, full_name, role, is_active, created_at FROM users").fetchall()
-    return jsonify([dict(r) for r in rows])
-
-@app.route('/api/admin/users/<int:id>/role', methods=['PATCH'])
-@role_required('admin')
-def user_role(id):
-    r = request.json.get('role'); q("UPDATE users SET role=? WHERE id=?", (r, id)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/admin/users/<int:id>/status', methods=['PATCH'])
-@role_required('admin')
-def user_status(id):
-    q("UPDATE users SET is_active = 1 - is_active WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/admin/users/<int:id>', methods=['DELETE'])
-@role_required('admin')
-def delete_user(id):
-    q("DELETE FROM users WHERE id=?", (id,)); commit(); return jsonify({'ok': True})
-
-@app.route('/api/admin/users/<int:id>/reset-password', methods=['PATCH'])
-@role_required('admin')
-def reset_user_pass(id):
-    p = request.json.get('new_password'); salt = secrets.token_hex(16); h = _hash_password(p, salt)
-    q("UPDATE users SET pass_hash=?, pass_salt=? WHERE id=?", (h, salt, id)); commit(); return jsonify({'ok': True})
+    return jsonify([dict(r) for r in q("SELECT id, username, email, full_name, role, is_active, created_at FROM users").fetchall()])
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def settings_api():
@@ -350,12 +281,17 @@ def settings_api():
         if u.get('role') != 'admin': return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}
         for k, v in d.items():
-            if getattr(g, 'is_pg', False):
-                q("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (k, str(v)))
-            else:
-                q("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (k, str(v), str(v)))
+            if getattr(g, 'is_pg', False): q("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (k, str(v)))
+            else: q("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (k, str(v), str(v)))
         commit(); return jsonify({'ok': True})
-    rows = q("SELECT key, value FROM settings").fetchall(); return jsonify({r['key']: r['value'] for r in rows})
+    return jsonify({r['key']: r['value'] for r in q("SELECT key, value FROM settings").fetchall()})
+
+@app.route('/api/reviews', methods=['GET', 'POST'])
+def reviews_api():
+    if request.method == 'POST':
+        d = request.json or {}; p = "%s" if getattr(g, 'is_pg', False) else "?"
+        q(f"INSERT INTO reviews (name, rating, text) VALUES ({p},{p},{p})", (d.get('name','Аноним'), d.get('rating',5), d.get('text',''))); commit(); return jsonify({'ok': True})
+    return jsonify([dict(r) for r in q("SELECT * FROM reviews WHERE approved=1 ORDER BY created_at DESC").fetchall()])
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
