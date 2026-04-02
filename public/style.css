@@ -570,7 +570,7 @@ a { color: inherit; }
 .tracking-eta { text-align: center; font-size: 1rem; color: var(--gray); margin-bottom: 24px; }
 
 /* ===== AUTH MODAL ===== */
-.auth-card { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+.auth-card { padding: 0 !important; overflow: visible; display: flex; flex-direction: column; min-height: 0; }
 .auth-logo, .forgot-icon { font-size: 3rem; text-align: center; margin-top: 40px; margin-bottom: 10px; line-height: 1; }
 .auth-title { text-align: center; font-family: 'Bebas Neue', cursive; font-size: 2rem; letter-spacing: 1px; color: var(--dark); margin-bottom: 4px; }
 .auth-sub { text-align: center; font-size: 0.9rem; color: var(--gray); margin-bottom: 24px; font-weight: 600; }
@@ -584,7 +584,17 @@ a { color: inherit; }
 }
 .auth-tab.active { color: var(--dark); }
 .auth-tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--yellow); }
-.auth-form { padding: 40px; }
+.auth-form { padding: 24px 32px; flex: 1; overflow-y: auto; }
+.auth-form#authRegister { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-content: start; }
+.auth-form#authRegister .form-group:nth-child(4),
+.auth-form#authRegister .btn-auth-submit,
+.auth-form#authRegister .auth-error,
+.auth-form#authRegister .field-error { grid-column: span 2; }
+
+@media (max-width: 600px) {
+  .auth-form#authRegister { grid-template-columns: 1fr; gap: 12px; }
+  .auth-form { padding: 20px; }
+}
 .auth-pass-wrap { position: relative; }
 .auth-eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: var(--transition); }
 .auth-eye-btn:hover { opacity: 1; }
