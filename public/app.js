@@ -1302,6 +1302,30 @@ function showToast(msg){
   setTimeout(()=>{ toast.classList.add('removing'); toast.addEventListener('animationend',()=>toast.remove(),{once:true}); },3000);
 }
 
+// ── Sticky Nav & Mobile Scroll ────────────────────────────────────
+window.addEventListener('scroll',()=>{
+  $('nav')?.classList.toggle('scrolled', window.scrollY > 50);
+  $('backToTop')?.classList.toggle('show', window.scrollY > 400);
+});
+
+// ── Mobile Menu ───────────────────────────────────────────────────
+function toggleMenu(){
+  const nav=$('navLinks'); const ham=$('hamburger');
+  if(!nav||!ham) return;
+  const open=nav.classList.toggle('open');
+  ham.classList.toggle('active');
+  ham.setAttribute('aria-expanded',open);
+  if(open) $('overlay').classList.add('show');
+  else if(!document.querySelector('.cart-panel.open') && !document.querySelector('.client-panel.open') && !document.querySelector('.admin-panel.open')) $('overlay').classList.remove('show');
+}
+function closeMenu(){
+  $('navLinks')?.classList.remove('open');
+  $('hamburger')?.classList.remove('active');
+  $('hamburger')?.setAttribute('aria-expanded','false');
+  if(!document.querySelector('.cart-panel.open') && !document.querySelector('.client-panel.open') && !document.querySelector('.admin-panel.open')) $('overlay').classList.remove('show');
+}
+$('hamburger')?.addEventListener('click',toggleMenu);
+
 // ═══════════════════════════════════════════════════════════════════
 // EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
@@ -1310,7 +1334,7 @@ $('closeCart').addEventListener('click',closeCart);
 $('adminCloseBtn')?.addEventListener('click', () => adminUI.close());
 $('checkoutBtn').addEventListener('click',openCheckout);
 $('adminLogout')?.addEventListener('click', doLogout);
-$('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); });
+$('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); closeMenu(); });
 
 document.querySelector('.filter-btn[data-cat="all"]').addEventListener('click',function(){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
