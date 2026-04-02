@@ -128,7 +128,7 @@ function checkOpenStatus(hours){
     if(navRight) navRight.prepend(badge);
   }
   badge.className='open-status '+(isOpen?'open':'closed');
-  badge.textContent=isOpen?'Открыто':'Закрыто';
+  badge.innerHTML='<span>'+(isOpen?'Открыто':'Закрыто')+'</span>';
 }
 
 // ═══════════════════════════════════════════════════════════════════

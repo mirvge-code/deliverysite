@@ -33,7 +33,7 @@ a { color: inherit; }
 .nav.scrolled { box-shadow: var(--shadow); }
 .nav-inner {
   max-width: 1200px; margin: 0 auto; padding: 0 24px;
-  height: 100%; display: flex; align-items: center; gap: 24px;
+  height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
 .logo {
   font-family: 'Bebas Neue', cursive; font-size: 1.5rem;
@@ -808,7 +808,10 @@ a { color: inherit; }
   .hero-title { font-size: 2.8rem; }
   .hero-stats { gap: 20px; }
   .container { padding: 0 16px; }
-  .nav-inner { padding: 0 16px; }
+  .nav-inner { padding: 0 12px; gap: 8px; }
+  .nav-right { gap: 6px; }
+  .btn-cart span:not(.cart-count), .btn-auth-nav span, .open-status span { display: none; }
+  .btn-cart, .btn-auth-nav { padding: 8px 12px; }
   .footer-inner { flex-direction: column; text-align: center; gap: 20px; }
 }
 
