@@ -855,13 +855,6 @@ a { color: inherit; }
   .nav-links-mobile a { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; font-size: 1.1rem; color: var(--dark); font-weight: 800; text-decoration: none; }
   .nav-links-mobile a:hover { background: var(--gray-light); }
   
-  .mobile-submenu { list-style: none; background: #fdfdfd; max-height: 0; overflow: hidden; transition: 0.3s; }
-  .mobile-submenu.open { max-height: 500px; padding-bottom: 10px; }
-  .mobile-submenu a { padding: 12px 40px; font-size: 0.95rem; font-weight: 600; color: var(--gray); border-bottom: none !important; }
-  .mobile-submenu a:hover { color: var(--dark); background: var(--yellow-light); }
-  .chevron { font-size: 0.7rem; transition: 0.3s; }
-  .has-submenu.active .chevron { transform: rotate(180deg); }
-
   .hamburger { display: flex; }
   .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
   .hamburger.active span:nth-child(2) { opacity: 0; }
