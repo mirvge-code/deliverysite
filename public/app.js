@@ -799,410 +799,401 @@ async function changeClientPassword(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ADMIN PANEL
 // ═══════════════════════════════════════════════════════════════════
-async function openAdmin(){
-  if(!state.currentUser||!['admin','manager'].includes(state.currentUser.role)){ openAuthModal('login'); return; }
-  try { state.promos=await GET('/promos'); } catch(_){}
-  $('adminPanel').classList.add('open'); $('overlay').classList.add('show');
-  $('adminUserBadge').textContent=state.currentUser.username;
-  renderAdminMenu(); renderAdminCats(); renderAdminPromos(); renderAdminReviews(); loadAdminOrders();
-  if(state.currentUser.role==='admin') loadAdminUsers();
-  const s=state.settings;
-  const fill=(id,v)=>{ const el=$(id); if(el) el.value=v||''; };
-  fill('adm-heroTitle1',s.hero_title); fill('adm-heroTime',s.hero_time||'30 мин'); fill('adm-heroSub',s.hero_sub);
-  fill('adm-statOrders',s.stat_orders); fill('adm-statPartners',s.stat_partners); fill('adm-statRating',s.stat_rating);
-  fill('adm-phone',s.phone); fill('adm-email',s.email); fill('adm-address',s.address); fill('adm-hours',s.hours); fill('adm-footer',s.footer);
-  fill('adm-aboutTitle',s.about_title); fill('adm-aboutText',s.about_text);
-  fill('adm-accentColor',s.accent_color||'#F5C518'); fill('adm-darkColor',s.dark_color||'#1E1E1E');
-  fill('adm-promoTitle',s.promo_title); fill('adm-promoDesc2',s.promo_desc); fill('adm-promoBannerCode',s.promo_banner_code);
-  const si=$('sessionInfo'); if(si) si.textContent='Вошли как: '+state.currentUser?.username+' ('+ROLE_LABELS[state.currentUser?.role]+'). Сессия активна.';
-}
-function closeAdmin(){ $('adminPanel').classList.remove('open'); $('overlay').classList.remove('show'); }
+// ADMIN PANEL — FULLSCREEN COMMAND CENTER
+// ═══════════════════════════════════════════════════════════════════
+const adminUI = {
+  activeTab: 'admOrders',
+  clockTimer: null,
 
-// Tabs
-document.querySelectorAll('.atab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    document.querySelectorAll('.atab').forEach(t=>{ t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
-    document.querySelectorAll('.atab-content').forEach(c=>c.classList.remove('active'));
-    tab.classList.add('active'); tab.setAttribute('aria-selected','true');
-    $('tab-'+tab.dataset.tab).classList.add('active');
-    if(tab.dataset.tab==='orders') loadAdminOrders();
-  });
+  async open() {
+    if(!state.currentUser||!['admin','manager'].includes(state.currentUser.role)){ openAuthModal('login'); return; }
+    
+    // Load fresh data
+    try { 
+      const [promos, settings] = await Promise.all([GET('/promos'), GET('/settings')]);
+      state.promos = promos;
+      state.settings = settings;
+    } catch(e){ console.error('Admin data load fail', e); }
+
+    $('adminPanel').classList.add('open');
+    document.body.style.overflow = 'hidden'; // Lock scroll
+    
+    this.startClock();
+    this.renderActiveTab();
+    this.fillSettingsForm();
+    
+    showToast('🚀 Панель управления открыта');
+  },
+
+  close() {
+    $('adminPanel').classList.remove('open');
+    document.body.style.overflow = '';
+    if(this.clockTimer) clearInterval(this.clockTimer);
+  },
+
+  startClock() {
+    const el = $('adminClock');
+    const update = () => { if(el) el.textContent = new Date().toLocaleString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'}); };
+    update();
+    this.clockTimer = setInterval(update, 1000);
+  },
+
+  switchTab(tabId) {
+    this.activeTab = tabId;
+    document.querySelectorAll('.atab').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+    document.querySelectorAll('.atab-content').forEach(c => c.classList.toggle('active', c.id === tabId));
+    
+    const titles = {
+      admOrders: '🥡 Управление заказами',
+      admMenu: '🍕 Меню и Блюда',
+      admCats: '📁 Категории',
+      admPromo: '🎟️ Промокоды',
+      admReviews: '💬 Отзывы',
+      admUsers: '👥 Пользователи',
+      admSettings: '⚙️ Настройки сайта'
+    };
+    setText('adminCurrentTabTitle', titles[tabId] || 'Админ');
+    this.renderActiveTab();
+  },
+
+  renderActiveTab() {
+    switch(this.activeTab) {
+      case 'admOrders': loadAdminOrders(); break;
+      case 'admMenu': renderAdminMenu(); break;
+      case 'admCats': renderAdminCats(); break;
+      case 'admPromo': renderAdminPromos(); break;
+      case 'admReviews': renderAdminReviews(); break;
+      case 'admUsers': loadAdminUsers(); break;
+      case 'admSettings': this.fillSettingsForm(); break;
+    }
+  },
+
+  fillSettingsForm() {
+    const f = $('settingsForm');
+    if(!f) return;
+    const s = state.settings;
+    for(let field of f.elements) {
+      if(field.name && s[field.name] !== undefined) {
+        if(field.type === 'checkbox') field.checked = !!s[field.name];
+        else field.value = s[field.name];
+      }
+    }
+    const colorPick = $('primaryColorPick');
+    if(colorPick) colorPick.value = s.accent_color || '#F5C518';
+  },
+
+  resetMenuForm() {
+    editingMenuId = null;
+    $('menuForm').reset();
+    $('menuId').value = '';
+    const h4 = $('menuForm').closest('.adm-card').querySelector('h4');
+    if(h4) h4.textContent = 'Добавить / Редактировать блюдо';
+  }
+};
+
+// Event Delegation for Admin Tabs
+$('adminTabs')?.addEventListener('click', e => {
+  const btn = e.target.closest('.atab');
+  if(btn) adminUI.switchTab(btn.dataset.tab);
 });
+
+
+// Update legacy aliases
+async function openAdmin(){ adminUI.open(); }
+function closeAdmin(){ adminUI.close(); }
 
 // ── Admin Menu ──────────────────────────────────────────────────────
 function renderAdminMenu(){
-  const q=($('adm-menuSearch')?.value||'').toLowerCase();
-  const list=$('menuAdminList'); list.innerHTML='';
-  const items=state.menu.filter(m=>!q||m.name.toLowerCase().includes(q)||m.category.toLowerCase().includes(q));
-  items.forEach(item=>{
+  const list=$('adminMenuContainer'); if(!list) return;
+  list.innerHTML='';
+  // Update category select in form
+  const sel = $('menuCat');
+  if(sel) {
+    sel.innerHTML = '<option value="">Выберите категорию...</option>';
+    state.categories.forEach(c => {
+      const opt = ce('option', {value: c.name}, c.name);
+      sel.appendChild(opt);
+    });
+  }
+
+  state.menu.forEach(item=>{
     const row=document.createElement('div'); row.className='adm-list-item';
-    const info=document.createElement('div'); info.style.cssText='display:flex;align-items:center;gap:8px;flex:1;min-width:0';
-    const photo=getPhoto(item);
-    if(photo){ const img=ce('img',{src:photo,style:'width:34px;height:34px;border-radius:7px;object-fit:cover;flex-shrink:0'}); img.addEventListener('error',()=>img.remove()); info.appendChild(img); }
+    const info=document.createElement('div'); info.style.cssText='display:flex;align-items:center;gap:15px;flex:1;min-width:0';
+    
+    const box = ce('div', {class:'user-avatar-lg', style:'background: #f1f5f9;'});
+    box.textContent = item.emoji || '🍕';
+    info.appendChild(box);
+
     const meta=document.createElement('div'); meta.style.cssText='min-width:0';
-    const nm=ce('div',{class:'adm-list-item-name'}); nm.textContent=(item.emoji||'🍽')+' '+item.name;
-    const mt=ce('div',{class:'adm-list-item-meta'}); mt.textContent=item.category+' · '+item.price.toLocaleString('ru-RU')+' ₽'+(item.badge?' · '+item.badge:'');
+    const nm=ce('div',{class:'adm-list-item-name', style:'font-weight: 800;'}); nm.textContent=item.name;
+    const mt=ce('div',{class:'adm-list-item-meta'}); mt.textContent=item.category+' · '+item.price.toLocaleString('ru-RU')+' ₽';
     meta.append(nm,mt); info.appendChild(meta);
+    
     const actions=document.createElement('div'); actions.className='adm-list-item-actions';
-    const editBtn=ce('button',{class:'adm-btn-action','aria-label':'Редактировать '+item.name}); editBtn.textContent='✏'; editBtn.addEventListener('click',()=>startEditMenuItem(item.id));
-    const delBtn=ce('button',{class:'adm-btn-del','aria-label':'Удалить '+item.name}); delBtn.textContent='🗑'; delBtn.addEventListener('click',()=>deleteMenuItem(item.id));
+    const editBtn=ce('button',{class:'btn-adm btn-adm-cancel', style:'padding: 8px 12px; font-size: 0.8rem;'}); editBtn.textContent='Изменить'; 
+    editBtn.addEventListener('click',()=>startEditMenuItem(item.id));
+    const delBtn=ce('button',{class:'btn-adm btn-adm-danger', style:'padding: 8px 12px; font-size: 0.8rem;'}); delBtn.textContent='Удалить'; 
+    delBtn.addEventListener('click',()=>deleteMenuItem(item.id));
+    
     actions.append(editBtn,delBtn); row.append(info,actions); list.appendChild(row);
   });
 }
 
-$('adm-menuSearch')?.addEventListener('input',renderAdminMenu);
-
 function startEditMenuItem(id){
   const item=state.menu.find(m=>m.id===id); if(!item) return;
-  editingMenuId=id;
-  $('adm-newName').value=item.name; $('adm-newDesc').value=item.description||'';
-  $('adm-newPrice').value=item.price; $('adm-newCat').value=item.category;
-  $('adm-newEmoji').value=item.emoji||''; $('adm-newPhoto').value=item.photo_url||'';
-  $('adm-newBadge').value=item.badge||'';
-  $('adm-formTitle').textContent='Редактировать блюдо';
-  $('adm-saveMenuBtn').textContent='💾 Сохранить изменения';
-  $('adm-cancelEditBtn').style.display='';
-  $('adm-newName').focus(); $('adm-newName').scrollIntoView({behavior:'smooth',block:'nearest'});
-  // Switch to menu tab
-  document.querySelector('[data-tab="menu"]')?.click();
+  editingMenuId = id;
+  $('menuId').value = id;
+  $('menuName').value = item.name;
+  $('menuPrice').value = item.price;
+  $('menuCat').value = item.category;
+  $('menuDesc').value = item.description || '';
+  $('menuEmoji').value = item.emoji || '';
+  $('menuPhoto').value = item.photo_url || '';
+  $('menuDiscount').value = item.discount || 0;
+  
+  const h4 = $('menuForm').closest('.adm-card').querySelector('h4');
+  if(h4) h4.textContent = '✏️ Редактирование: ' + item.name;
+  $('menuForm').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
-function cancelMenuEdit(){
-  editingMenuId=null; pendingPhotoDataUrl=null;
-  $('adm-formTitle').textContent='Добавить блюдо';
-  $('adm-saveMenuBtn').textContent='➕ Добавить блюдо';
-  $('adm-cancelEditBtn').style.display='none';
-  ['adm-newName','adm-newDesc','adm-newPrice','adm-newCat','adm-newEmoji','adm-newPhoto'].forEach(id=>{ const e=$(id); if(e) e.value=''; });
-  $('adm-newBadge').value=''; $('adm-photoPreview').classList.remove('show');
-}
-
-async function saveMenuItemForm(){
-  const name=$('adm-newName').value.trim(); const desc=$('adm-newDesc').value.trim();
-  const price=parseInt($('adm-newPrice').value); const cat=$('adm-newCat').value.trim();
-  const emoji=$('adm-newEmoji').value.trim()||'🍽'; const photoUrl=$('adm-newPhoto').value.trim();
-  const badge=$('adm-newBadge').value;
-  if(!name||!price||!cat||isNaN(price)){ showToast('⚠ Заполните обязательные поля'); return; }
-  const photo=pendingPhotoDataUrl||photoUrl||null;
-  const body={name,description:desc,price,category:cat,emoji,photo_url:photo,badge};
+$('menuForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = {
+    name: $('menuName').value.trim(),
+    category: $('menuCat').value,
+    price: parseInt($('menuPrice').value),
+    description: $('menuDesc').value.trim(),
+    emoji: $('menuEmoji').value.trim() || '🍕',
+    photo_url: $('menuPhoto').value.trim() || null,
+    discount: parseInt($('menuDiscount').value) || 0
+  };
+  
   try {
-    if(editingMenuId!==null){
-      const updated=await PUT('/menu/'+editingMenuId,body);
-      const idx=state.menu.findIndex(m=>m.id===editingMenuId); if(idx!==-1) state.menu[idx]=updated;
-      showToast('✅ '+name+' обновлён!');
+    if(editingMenuId) {
+      await PUT('/menu/'+editingMenuId, body);
+      showToast('✅ Блюдо обновлено');
     } else {
-      const created=await POST('/menu',body); state.menu.push(created); showToast('✅ '+emoji+' '+name+' добавлен!');
+      await POST('/menu', body);
+      showToast('✅ Блюдо добавлено');
     }
-    await refreshCategories(); renderMenu(); renderHits(); renderAdminMenu(); cancelMenuEdit();
-  } catch(e){ showToast('❌ '+e.message); }
-}
+    const menu = await GET('/menu');
+    state.menu = menu;
+    renderAdminMenu(); renderMenu();
+    adminUI.resetMenuForm();
+  } catch(err) { showToast('❌ ' + err.message); }
+});
 
 async function deleteMenuItem(id){
-  const item=state.menu.find(m=>m.id===id);
-  if(!item||!confirm('Удалить «'+item.name+'»?')) return;
-  try { await DEL('/menu/'+id); state.menu=state.menu.filter(m=>m.id!==id); renderMenu(); renderHits(); renderAdminMenu(); showToast('Блюдо удалено'); }
-  catch(e){ showToast('❌ '+e.message); }
-}
-
-function previewAdminPhoto(input){
-  if(!input.files?.[0]) return;
-  const reader=new FileReader();
-  reader.onload=e=>{ pendingPhotoDataUrl=e.target.result; const p=$('adm-photoPreview'); p.innerHTML=''; const img=ce('img',{src:pendingPhotoDataUrl,alt:'preview'}); p.appendChild(img); p.classList.add('show'); $('adm-newPhoto').value=''; };
-  reader.readAsDataURL(input.files[0]);
-}
-
-// Export menu as JSON
-function exportMenuJSON(){
-  const blob=new Blob([JSON.stringify(state.menu,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='menu-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
-  showToast('📥 Меню экспортировано');
+  if(!confirm('Удалить это блюдо?')) return;
+  try {
+    await DEL('/menu/'+id);
+    state.menu = state.menu.filter(m => m.id !== id);
+    renderAdminMenu(); renderMenu();
+    showToast('🗑 Удалено');
+  } catch(err) { showToast('❌ ' + err.message); }
 }
 
 // ── Admin Categories ────────────────────────────────────────────────
-async function refreshCategories(){
-  try { state.categories=await GET('/categories'); renderCategories(); } catch(_){}
-}
-
 function renderAdminCats(){
-  const list=$('catAdminList'); list.innerHTML='';
+  const list=$('adminCatsContainer'); if(!list) return;
+  list.innerHTML='';
   state.categories.forEach(c=>{
     const row=document.createElement('div'); row.className='adm-list-item';
-    const info=document.createElement('div'); info.className='adm-list-item-info';
-    const nm=ce('div',{class:'adm-list-item-name'}); nm.textContent=c.emoji+' '+c.name;
-    const mt=ce('div',{class:'adm-list-item-meta'}); mt.textContent=state.menu.filter(m=>m.category===c.name).length+' блюд';
-    info.append(nm,mt);
-    const del=ce('button',{class:'adm-btn-del','aria-label':'Удалить категорию '+c.name}); del.textContent='🗑';
+    row.innerHTML = `<div style="display:flex; align-items:center; gap:12px;">
+       <span style="font-size: 1.5rem;">${c.emoji||'📁'}</span>
+       <div style="font-weight: 800;">${c.name}</div>
+    </div>`;
+    const del=ce('button',{class:'btn-adm btn-adm-danger', style:'padding: 6px 12px;'}); del.textContent='Удалить';
     del.addEventListener('click',()=>deleteCategory(c.id));
-    const actions=document.createElement('div'); actions.className='adm-list-item-actions'; actions.appendChild(del);
-    row.append(info,actions); list.appendChild(row);
+    row.appendChild(del);
+    list.appendChild(row);
   });
 }
 
-async function addCategory(){
-  const name=$('adm-catName').value.trim(); const emoji=$('adm-catEmoji').value.trim()||'🍽';
-  if(!name){ showToast('⚠ Введите название'); return; }
+$('catForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = { name: $('catNameField').value.trim(), emoji: $('catEmojiField').value.trim() };
   try {
-    const cat=await POST('/categories',{name,emoji});
-    state.categories.push(cat); renderCategories(); renderAdminCats();
-    $('adm-catName').value=''; $('adm-catEmoji').value='';
-    showToast('✅ Категория «'+name+'» добавлена');
-  } catch(e){ showToast('❌ '+e.message); }
-}
+    await POST('/categories', body);
+    state.categories = await GET('/categories');
+    renderAdminCats(); renderCategories();
+    $('catForm').reset();
+    showToast('✅ Категория добавлена');
+  } catch(err) { showToast('❌ ' + err.message); }
+});
 
 async function deleteCategory(id){
-  const cat=state.categories.find(c=>c.id===id); if(!cat) return;
-  const count=state.menu.filter(m=>m.category===cat.name).length;
-  if(!confirm(count?`Удалить «${cat.name}»? Вместе с ней скроется ${count} блюд.`:`Удалить категорию «${cat.name}»?`)) return;
+  if(!confirm('Удалить категорию?')) return;
   try {
     await DEL('/categories/'+id);
-    state.categories=state.categories.filter(c=>c.id!==id);
-    state.menu=state.menu.filter(m=>m.category!==cat.name);
-    if(state.activeFilter===cat.name) state.activeFilter='all';
-    renderCategories(); renderMenu(); renderHits(); renderAdminCats(); showToast('Категория удалена');
-  } catch(e){ showToast('❌ '+e.message); }
+    state.categories = state.categories.filter(c => c.id !== id);
+    renderAdminCats(); renderCategories();
+    showToast('🗑 Удалено');
+  } catch(err) { showToast('❌ ' + err.message); }
 }
 
 // ── Admin Promos ─────────────────────────────────────────────────────
 function renderAdminPromos(){
-  const list=$('promosAdminList'); list.innerHTML='';
-  if(!state.promos.length){ const p=ce('p',{class:'adm-hint-text'}); p.textContent='Промокодов нет'; list.appendChild(p); return; }
+  const list=$('adminPromoContainer'); if(!list) return;
+  list.innerHTML='';
   state.promos.forEach(p=>{
     const row=document.createElement('div'); row.className='adm-list-item';
-    const info=document.createElement('div'); info.className='adm-list-item-info';
-    const nm=ce('div',{class:'adm-list-item-name'}); nm.textContent=p.code+(p.active===0?' (выкл)':'');
-    const mt=ce('div',{class:'adm-list-item-meta'}); mt.textContent=p.description+(p.min_sum?' · от '+p.min_sum.toLocaleString('ru-RU')+' ₽':'')+' · использован '+p.used_cnt+' раз';
-    info.append(nm,mt);
-    const del=ce('button',{class:'adm-btn-del'}); del.textContent='🗑';
-    del.addEventListener('click',async()=>{
-      try{ await DEL('/promos/'+p.id); state.promos=state.promos.filter(x=>x.id!==p.id); renderAdminPromos(); showToast('Промокод удалён'); }
-      catch(e){ showToast('❌ '+e.message); }
+    row.innerHTML = `<div>
+       <div style="font-weight: 800; color: var(--yellow-dark);">${p.code}</div>
+       <div style="font-size: 0.8rem; color: var(--gray);">${p.type==='percent'?'Скидка '+p.value+'%':'Минус '+p.value+' ₽'} · 👤 ${p.used_cnt||0}</div>
+    </div>`;
+    const del=ce('button',{class:'btn-adm btn-adm-danger', style:'padding: 6px 12px;'}); del.textContent='Удалить';
+    del.addEventListener('click', async () => {
+       try { await DEL('/promos/'+p.id); state.promos = state.promos.filter(x=>x.id!==p.id); renderAdminPromos(); } catch(e){ showToast(e.message); }
     });
-    const actions=document.createElement('div'); actions.className='adm-list-item-actions'; actions.appendChild(del);
-    row.append(info,actions); list.appendChild(row);
+    row.appendChild(del);
+    list.appendChild(row);
   });
 }
 
-async function addPromo(){
-  const code=$('adm-promoCode').value.trim().toUpperCase(); const type=$('adm-promoType').value;
-  const value=parseFloat($('adm-promoValue').value); const min=parseFloat($('adm-promoMin').value)||0;
-  const desc=$('adm-promoDesc').value.trim()||code;
-  if(!code||isNaN(value)||value<=0){ showToast('⚠ Заполните обязательные поля'); return; }
+$('promoForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = {
+    code: $('promoCodeField').value.trim().toUpperCase(),
+    value: parseFloat($('promoValField').value),
+    type: $('promoTypeField').value,
+    min_sum: 0, description: ''
+  };
   try {
-    const p=await POST('/promos',{code,type,value,min_sum:min,description:desc});
-    state.promos.push({...p,code,type,value,min_sum:min,description:desc,active:1,used_cnt:0});
+    await POST('/promos', body);
+    state.promos = await GET('/promos');
     renderAdminPromos();
-    ['adm-promoCode','adm-promoValue','adm-promoMin','adm-promoDesc'].forEach(id=>{ const e=$(id); if(e) e.value=''; });
-    showToast('✅ Промокод '+code+' добавлен');
-  } catch(e){ showToast('❌ '+e.message); }
-}
-
-async function savePromoBanner(){
-  const title=$('adm-promoTitle').value.trim(); const desc=$('adm-promoDesc2').value.trim(); const code=$('adm-promoBannerCode').value.trim();
-  if(title) setText('promoTitle',title); if(desc) setText('promoDesc',desc); if(code) setText('promoCodeDisplay',code);
-  try { await POST('/settings',{promo_title:title,promo_desc:desc,promo_banner_code:code}); showToast('✅ Баннер обновлён'); }
-  catch(e){ showToast('❌ '+e.message); }
-}
+    $('promoForm').reset();
+    showToast('✅ Промокод добавлен');
+  } catch(err) { showToast('❌ ' + err.message); }
+});
 
 // ── Admin Reviews ────────────────────────────────────────────────────
 async function renderAdminReviews(){
-  const list=$('reviewsAdminList'); list.innerHTML='';
-  let reviews=state.reviews;
-  try { reviews=await GET('/reviews'); } catch(_){}
-  if(!reviews.length){ const p=ce('p',{class:'adm-hint-text'}); p.textContent='Отзывов нет'; list.appendChild(p); return; }
-  [...reviews].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).forEach(r=>{
-    const row=document.createElement('div'); row.className='adm-list-item';
-    const info=document.createElement('div'); info.className='adm-list-item-info';
-    const nm=ce('div',{class:'adm-list-item-name'}); nm.textContent='★'.repeat(r.rating)+' '+r.name+(r.approved?'':' ⏳ На модерации');
-    const mt=ce('div',{class:'adm-list-item-meta'}); mt.textContent=(r.created_at||'').slice(0,10)+' — '+r.text.slice(0,60)+(r.text.length>60?'…':'');
-    info.append(nm,mt);
-    const actions=document.createElement('div'); actions.className='adm-list-item-actions';
-    if(!r.approved){
-      const approveBtn=ce('button',{class:'adm-btn-action','aria-label':'Одобрить'}); approveBtn.textContent='✅';
-      approveBtn.addEventListener('click',async()=>{
-        try{
-          await PATCH('/reviews/'+r.id+'/approve',{}); r.approved=1;
-          await renderAdminReviews(); state.reviews=await GET('/reviews').catch(()=>state.reviews); renderReviews(); showToast('Отзыв опубликован');
-        } catch(e){ showToast('❌ '+e.message); }
-      });
-      actions.appendChild(approveBtn);
-    }
-    const del=ce('button',{class:'adm-btn-del'}); del.textContent='🗑';
-    del.addEventListener('click',async()=>{
-      try{ await DEL('/reviews/'+r.id); await renderAdminReviews(); state.reviews=state.reviews.filter(x=>x.id!==r.id); renderReviews(); showToast('Отзыв удалён'); }
-      catch(e){ showToast('❌ '+e.message); }
+  const list=$('adminReviewsContainer'); if(!list) return;
+  list.innerHTML='';
+  try {
+    const revs = await GET('/reviews');
+    revs.forEach(r => {
+      const row=document.createElement('div'); row.className='adm-list-item';
+      row.style.flexDirection = 'column'; row.style.alignItems = 'flex-start'; row.style.gap = '8px';
+      row.innerHTML = `<div style="display:flex; justify-content:space-between; width:100%;">
+         <div style="font-weight: 800;">${r.name} · ${'★'.repeat(r.rating)}</div>
+         <div style="font-size: 0.8rem; color: var(--gray);">${(r.created_at||'').slice(0,10)}</div>
+      </div>
+      <div style="font-size: 0.9rem;">${r.text}</div>`;
+      
+      const actions = ce('div', {style:'display:flex; gap:10px; margin-top:10px; width:100%;'});
+      if(!r.approved) {
+        const ok = ce('button', {class:'btn-adm btn-adm-save', style:'flex:1; padding:8px;'}); ok.textContent = 'Одобрить';
+        ok.onclick = async () => { await PATCH('/reviews/'+r.id+'/approve'); renderAdminReviews(); };
+        actions.appendChild(ok);
+      }
+      const del = ce('button', {class:'btn-adm btn-adm-danger', style:'flex:1; padding:8px;'}); del.textContent = 'Удалить';
+      del.onclick = async () => { await DEL('/reviews/'+r.id); renderAdminReviews(); };
+      actions.appendChild(del);
+      
+      row.appendChild(actions);
+      list.appendChild(row);
     });
-    actions.appendChild(del); row.append(info,actions); list.appendChild(row);
-  });
+  } catch(e){ list.innerHTML = 'Ошибка загрузки отзывов'; }
 }
 
 // ── Admin Orders ─────────────────────────────────────────────────────
-const STATUS_LABELS={new:'🆕 Новый',confirmed:'✅ Подтверждён',preparing:'👨‍🍳 Готовится',delivering:'🚴 В пути',done:'✔ Доставлен',cancelled:'❌ Отменён'};
-
-async function loadAdminOrders(status='',q=''){
-  const list=$('ordersAdminList'); if(!list) return;
-  list.innerHTML='<p class="adm-hint-text">Загрузка…</p>';
+async function loadAdminOrders(){
+  const list=$('adminOrdersContainer'); if(!list) return;
+  list.innerHTML='<div class="adm-hint-text">Загрузка...</div>';
+  const statusFilter = document.querySelector('.orders-filters .filter-btn.active')?.dataset.status || 'all';
   try {
-    const params=new URLSearchParams({status,q});
-    const orders=await GET('/orders?'+params.toString());
+    const orders = await GET('/orders?status='+(statusFilter==='all'?'':statusFilter));
     list.innerHTML='';
-    if(!orders.length){ const p=ce('p',{class:'adm-hint-text'}); p.textContent='Заказов нет'; list.appendChild(p); return; }
-    orders.forEach(o=>{
-      const card=document.createElement('div'); card.className='order-card';
-      const header=document.createElement('div'); header.className='order-card-header';
-      const num=ce('div',{class:'order-card-num'}); num.textContent='#'+o.order_num;
-      const ts=ce('div',{class:'order-card-ts'}); ts.textContent=o.created_at?.slice(0,16)||'';
-      header.append(num,ts);
-      const info=document.createElement('div'); info.className='order-card-info';
-      const addrStr=o.delivery_type==='delivery'?(o.address?' · 📍'+o.address:''):'· 🏪 Самовывоз';
-      info.innerHTML='<b>'+esc(o.name)+'</b> · '+esc(o.phone)+esc(addrStr);
-      const pay=ce('div',{class:'order-card-items',style:'margin-bottom:4px'}); pay.textContent='💳 '+(o.payment==='cash'?'Наличными':o.payment==='card'?'Картой курьеру':'Онлайн (СБП)');
-      const itemsEl=ce('div',{class:'order-card-items'}); itemsEl.textContent=(o.items||[]).map(i=>i.name+' ×'+i.qty).join(', ');
-      if(o.comment){ const cmnt=ce('div',{class:'order-card-items',style:'font-style:italic'}); cmnt.textContent='💬 '+o.comment; card.appendChild(cmnt); }
-      const footer=document.createElement('div'); footer.className='order-card-footer';
-      const total=ce('div',{class:'order-card-total'}); total.textContent=o.total.toLocaleString('ru-RU')+' ₽'+(o.discount>0?' (−'+o.discount+'₽)':'');
-      const sel=document.createElement('select'); sel.className='order-status-sel';
-      Object.entries(STATUS_LABELS).forEach(([v,l])=>{ const opt=ce('option'); opt.value=v; opt.textContent=l; if(v===o.status) opt.selected=true; sel.appendChild(opt); });
-      sel.addEventListener('change',async()=>{
-        try{ await PATCH('/orders/'+o.id+'/status',{status:sel.value}); showToast('Статус обновлён'); }
-        catch(e){ showToast('❌ '+e.message); sel.value=o.status; }
-      });
-      footer.append(total,sel); card.append(header,info,pay,itemsEl,footer); list.appendChild(card);
+    if(!orders.length) { list.innerHTML = '<div class="adm-hint-text">Заказов пока нет</div>'; return; }
+    orders.forEach(o => {
+      const card = document.createElement('div'); card.className = 'adm-order-card';
+      const items = (o.items||[]).map(i => `<div style="display:flex; justify-content:space-between; font-size:0.9rem;"><span>${i.name} × ${i.qty}</span><span>${i.price*i.qty} ₽</span></div>`).join('');
+      
+      card.innerHTML = `
+        <div class="adm-order-header">
+           <span class="adm-order-id">#${o.order_num}</span>
+           <span class="adm-order-status" style="background: #f1f5f9; color: var(--dark);">${STATUS_LABELS[o.status]||o.status}</span>
+        </div>
+        <div style="margin-bottom: 12px; font-weight: 700;">👤 ${o.name} · ${o.phone}</div>
+        <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--gray);">📍 ${o.address || 'Самовывоз'}</div>
+        <div style="border-top: 1px dashed #e2e8f0; padding-top: 10px; margin-bottom: 10px;">${items}</div>
+        <div style="font-weight: 800; font-size: 1.1rem; text-align: right; margin-bottom: 15px;">Итого: ${o.total} ₽</div>
+        <div class="adm-btn-row">
+           <select class="adm-input" style="flex:1;" onchange="updateOrderStatus(${o.id}, this.value)">
+              ${Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${v===o.status?'selected':''}>${l}</option>`).join('')}
+           </select>
+           <button class="btn-adm btn-adm-danger" onclick="deleteOrder(${o.id})" style="padding: 10px 15px;">🗑</button>
+        </div>
+      `;
+      list.appendChild(card);
     });
-  } catch(e){ list.innerHTML='<p class="adm-hint-text">Ошибка загрузки заказов: '+esc(e.message||'')+'</p>'; }
+  } catch(e){ list.innerHTML = 'Ошибка: ' + e.message; }
 }
 
-$('orderSearch')?.addEventListener('input',()=>{ loadAdminOrders($('orderStatusFilter')?.value||'',$('orderSearch').value); });
-$('orderStatusFilter')?.addEventListener('change',()=>{ loadAdminOrders($('orderStatusFilter').value,$('orderSearch')?.value||''); });
-
-// ── Admin Save Functions ─────────────────────────────────────────────
-async function saveHero(){
-  const title1=$('adm-heroTitle1').value; const time=$('adm-heroTime').value;
-  const sub=$('adm-heroSub').value; const orders=$('adm-statOrders').value;
-  const partners=$('adm-statPartners').value; const rating=$('adm-statRating').value;
-  // FIX: DOM methods instead of raw innerHTML
-  const heroTitle=$('heroTitle'); heroTitle.innerHTML='';
-  heroTitle.appendChild(document.createTextNode(title1));
-  heroTitle.insertAdjacentHTML('beforeend','<br>за <span class="accent" id="heroTime">'+esc(time)+'</span>');
-  setText('heroSub',sub); setText('statOrders',orders); setText('statPartners',partners); setText('statRating',rating);
-  try {
-    await POST('/settings',{hero_title:title1,hero_time:time,hero_sub:sub,stat_orders:orders,stat_partners:partners,stat_rating:rating});
-    state.settings={...state.settings,hero_title:title1,hero_time:time};
-    showToast('✅ Главная обновлена');
-  } catch(e){ showToast('❌ '+e.message); }
+async function updateOrderStatus(id, status){
+  try { await PATCH('/orders/'+id+'/status', {status}); showToast('✅ Статус обновлен'); loadAdminOrders(); }
+  catch(e){ showToast(e.message); }
 }
 
-async function saveContacts(){
-  const phone=$('adm-phone').value; const email=$('adm-email').value;
-  const address=$('adm-address').value; const hours=$('adm-hours').value; const footer=$('adm-footer').value;
-  setText('phone',phone); setText('email',email); setText('address',address); setText('hours',hours); setText('footerText',footer);
-  $('phone')?.closest('a')?.setAttribute('href','tel:'+phone.replace(/\D/g,''));
-  $('email')?.closest('a')?.setAttribute('href','mailto:'+email);
-  checkOpenStatus(hours);
-  try { await POST('/settings',{phone,email,address,hours,footer}); showToast('✅ Контакты сохранены'); }
-  catch(e){ showToast('❌ '+e.message); }
+async function deleteOrder(id){
+  if(!confirm('Удалить этот заказ навсегда?')) return;
+  try { await DEL('/orders/'+id); showToast('🗑 Заказ удален'); loadAdminOrders(); }
+  catch(e){ showToast(e.message); }
 }
 
-// FIX: renamed from saveSettings to avoid conflict with internal helper
-async function saveAdminSettings(){
-  const accent=$('adm-accentColor').value; const dark=$('adm-darkColor').value;
-  const aboutTitle=$('adm-aboutTitle').value; const aboutText=$('adm-aboutText').value;
-  document.documentElement.style.setProperty('--yellow',accent);
-  document.documentElement.style.setProperty('--dark',dark);
-  setText('aboutTitle',aboutTitle); setText('aboutText',aboutText);
-  try { await POST('/settings',{accent_color:accent,dark_color:dark,about_title:aboutTitle,about_text:aboutText}); showToast('✅ Настройки сохранены'); }
-  catch(e){ showToast('❌ '+e.message); }
-}
+// Event delegation for order status filters
+document.querySelector('.orders-filters')?.addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if(btn) {
+    document.querySelectorAll('.orders-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadAdminOrders();
+  }
+});
 
-async function saveCredentials(){
-  const newPass=$('sec-newPass').value; const confirm=$('sec-confirmPass').value;
-  const errEl=$('secError'); errEl.classList.remove('show');
-  if(newPass.length<8){ errEl.textContent='⚠ Пароль — минимум 8 символов'; errEl.classList.add('show'); return; }
-  if(newPass!==confirm){ errEl.textContent='⚠ Пароли не совпадают'; errEl.classList.add('show'); return; }
-  try {
-    await POST('/auth/change-password',{old_pass:$('sec-oldPass')?.value||'',new_pass:newPass,confirm});
-    $('sec-newPass').value=''; $('sec-confirmPass').value=''; if($('sec-oldPass'))$('sec-oldPass').value='';
-    showToast('🔒 Пароль обновлён!');
-  } catch(e){ errEl.textContent='⚠ '+e.message; errEl.classList.add('show'); }
-}
-
-function resetAll(){
-  if(!confirm('Сбросить локальные данные? Данные на сервере сохранятся.')) return;
-  state.cart=[]; state.appliedPromo=null; localStorage.clear(); updateCartUI(); showToast('Локальные данные сброшены');
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// ADMIN — USER MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════
+// ── Admin Users ─────────────────────────────────────────────────────
 async function loadAdminUsers(){
-  const list=$('usersAdminList'); if(!list) return;
-  list.innerHTML='<p class="adm-hint-text">Загрузка…</p>';
+  const list=$('adminUsersContainer'); if(!list) return;
+  list.innerHTML='';
   try {
-    const role=$('usersRoleFilter')?.value||''; const q=$('usersSearch')?.value||'';
-    const users=await GET('/admin/users?role='+encodeURIComponent(role)+'&q='+encodeURIComponent(q));
-    list.innerHTML='';
-    if(!users.length){ list.innerHTML='<p class="adm-hint-text">Пользователей не найдено</p>'; return; }
-    users.forEach(u=>{
-      const row=document.createElement('div'); row.className='adm-list-item'+(u.is_active?'':' blocked');
-      const info=document.createElement('div'); info.className='adm-list-item-info';
-      const nm=ce('div',{class:'adm-list-item-name'}); nm.textContent=(u.is_active?'':'🚫 ')+u.full_name+' (@'+u.username+')';
-      const mt=ce('div',{class:'adm-list-item-meta'});
-      mt.textContent=(ROLE_LABELS[u.role]||u.role)+' · '+(u.email||'нет email')+' · рег. '+(u.created_at||'').slice(0,10)+(u.last_login?' · вход '+(u.last_login||'').slice(0,10):'');
-      info.append(nm,mt);
-      const actions=document.createElement('div'); actions.className='adm-list-item-actions';
-      // Role change
-      const roleSel=document.createElement('select'); roleSel.className='order-status-sel'; roleSel.style.marginRight='4px';
-      ['client','manager','admin'].forEach(r=>{ const opt=ce('option'); opt.value=r; opt.textContent=ROLE_LABELS[r]; if(r===u.role) opt.selected=true; roleSel.appendChild(opt); });
-      roleSel.addEventListener('change',async()=>{
-        try{ await PATCH('/admin/users/'+u.id+'/role',{role:roleSel.value}); showToast('Роль изменена'); loadAdminUsers(); }
-        catch(e){ showToast('❌ '+e.message); roleSel.value=u.role; }
-      });
-      actions.appendChild(roleSel);
-      // Block/unblock
-      const blockBtn=ce('button',{class:'adm-btn-action','aria-label':u.is_active?'Заблокировать':'Разблокировать'});
-      blockBtn.textContent=u.is_active?'🚫':'✅';
-      blockBtn.addEventListener('click',async()=>{
-        const msg=u.is_active?'Заблокировать '+u.username+'?':'Разблокировать '+u.username+'?';
-        if(!confirm(msg)) return;
-        try{ await PATCH('/admin/users/'+u.id+'/status',{}); showToast(u.is_active?'Пользователь заблокирован':'Пользователь разблокирован'); loadAdminUsers(); }
-        catch(e){ showToast('❌ '+e.message); }
-      });
-      actions.appendChild(blockBtn);
-      // Reset password
-      const resetBtn=ce('button',{class:'adm-btn-action','aria-label':'Сбросить пароль'}); resetBtn.textContent='🔑';
-      resetBtn.addEventListener('click',()=>{ resetPassUserId=u.id; $('resetPassUser').textContent='Пользователь: '+u.full_name+' (@'+u.username+')'; $('resetPassInput').value=''; $('resetPassModal').style.display='flex'; });
-      actions.appendChild(resetBtn);
-      // Delete
-      const delBtn=ce('button',{class:'adm-btn-del','aria-label':'Удалить'}); delBtn.textContent='🗑';
-      delBtn.addEventListener('click',async()=>{
-        if(!confirm('Удалить пользователя '+u.username+'? Это действие необратимо.')) return;
-        try{ await DEL('/admin/users/'+u.id); showToast('Пользователь удалён'); loadAdminUsers(); }
-        catch(e){ showToast('❌ '+e.message); }
-      });
-      actions.appendChild(delBtn);
-      row.append(info,actions); list.appendChild(row);
+    const users = await GET('/admin/users');
+    users.forEach(u => {
+      const row = document.createElement('div'); row.className = 'adm-list-item';
+      row.innerHTML = `
+        <div class="adm-user-card">
+           <div class="user-avatar-lg">${u.username.charAt(0).toUpperCase()}</div>
+           <div>
+              <div style="font-weight: 800;">${u.full_name || u.username}</div>
+              <div style="font-size: 0.8rem; color: var(--gray);">${ROLE_LABELS[u.role]} · ${u.email||''}</div>
+           </div>
+        </div>
+        <div class="adm-list-item-actions">
+           <select class="adm-input" style="padding: 5px 10px; font-size: 0.8rem;" onchange="updateUserRole(${u.id}, this.value)">
+              <option value="client" ${u.role==='client'?'selected':''}>Клиент</option>
+              <option value="manager" ${u.role==='manager'?'selected':''}>Менеджер</option>
+              <option value="admin" ${u.role==='admin'?'selected':''}>Админ</option>
+           </select>
+           <button class="btn-adm btn-adm-danger" onclick="deleteUser(${u.id})" style="padding: 6px 12px;">🗑</button>
+        </div>
+      `;
+      list.appendChild(row);
     });
-  } catch(e){ list.innerHTML='<p class="adm-hint-text">Ошибка: '+esc(e.message)+'</p>'; }
+  } catch(e){ list.innerHTML = 'Ошибка: ' + e.message; }
 }
 
-$('usersSearch')?.addEventListener('input',()=>loadAdminUsers());
-$('usersRoleFilter')?.addEventListener('change',()=>loadAdminUsers());
+async function updateUserRole(id, role){
+  try { await PATCH('/admin/users/'+id+'/role', {role}); showToast('✅ Роль изменена'); loadAdminUsers(); }
+  catch(e){ showToast(e.message); }
+}
 
-async function adminCreateUser(){
-  const username=$('au-username').value.trim();
-  const full_name=$('au-fullname').value.trim();
-  const email=$('au-email').value.trim();
-  const password=$('au-password').value;
-  const role=$('au-role').value;
-  if(!username){ showToast('⚠ Введите логин'); return; }
-  if(password.length<8){ showToast('⚠ Пароль — минимум 8 символов'); return; }
-  try {
-    await POST('/admin/users',{username,full_name,email,password,role});
-    showToast('✅ Пользователь '+username+' создан');
-    ['au-username','au-fullname','au-email','au-password'].forEach(id=>{const e=$(id);if(e)e.value='';});
-    loadAdminUsers();
-  } catch(e){ showToast('❌ '+e.message); }
+async function deleteUser(id){
+  if(!confirm('Удалить пользователя?')) return;
+  try { await DEL('/admin/users/'+id); showToast('🗑 Удален'); loadAdminUsers(); }
+  catch(e){ showToast(e.message); }
 }
 
 async function confirmResetPassword(){
@@ -1213,6 +1204,29 @@ async function confirmResetPassword(){
     $('resetPassModal').style.display='none'; showToast('✅ Пароль сброшен');
   } catch(e){ showToast('❌ '+e.message); }
 }
+
+// ── Admin Settings ───────────────────────────────────────
+$('settingsForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = {};
+  fd.forEach((v, k) => {
+    if(e.target.elements[k].type === 'checkbox') body[k] = e.target.elements[k].checked;
+    else if(e.target.elements[k].type === 'number') body[k] = parseFloat(v) || 0;
+    else body[k] = v;
+  });
+  
+  // Add colors
+  body.accent_color = $('primaryColorPick').value;
+
+  try {
+    await POST('/settings', body);
+    state.settings = { ...state.settings, ...body };
+    applySettings(state.settings);
+    showToast('✅ Все настройки сохранены');
+  } catch(err) { showToast('❌ ' + err.message); }
+});
+
 
 // ═══════════════════════════════════════════════════════════════════
 // PANELS & MODALS
@@ -1295,9 +1309,9 @@ function showToast(msg){
 // ═══════════════════════════════════════════════════════════════════
 $('cartBtn').addEventListener('click',openCart);
 $('closeCart').addEventListener('click',closeCart);
-$('closeAdmin').addEventListener('click',closeAdmin);
+$('adminCloseBtn')?.addEventListener('click', () => adminUI.close());
 $('checkoutBtn').addEventListener('click',openCheckout);
-$('overlay').addEventListener('click',()=>{ closeCart(); closeAdmin(); closeClientPanel(); });
+$('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); });
 
 document.querySelector('.filter-btn[data-cat="all"]').addEventListener('click',function(){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));

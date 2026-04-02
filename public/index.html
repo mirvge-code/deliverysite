@@ -526,210 +526,239 @@
 </aside>
 
 <!-- ADMIN PANEL -->
-<aside class="admin-panel" id="adminPanel" role="dialog" aria-modal="true" aria-label="Панель администратора">
-  <div class="admin-header">
-    <div class="admin-header-left">
-      <h2>⚙ Админ</h2>
-      <span class="admin-session-badge" id="adminUserBadge">admin</span>
-    </div>
-    <div class="admin-header-right">
-      <button class="btn-logout" onclick="adminLogout()" aria-label="Выйти из панели">Выйти</button>
-      <button class="close-btn" id="closeAdmin" aria-label="Закрыть панель">✕</button>
-    </div>
-  </div>
-  <div class="admin-body">
-    <div class="admin-tabs" role="tablist">
-      <button class="atab active" data-tab="hero" role="tab" aria-selected="true">Главная</button>
-      <button class="atab" data-tab="orders" role="tab" aria-selected="false">📦 Заказы</button>
-      <button class="atab" data-tab="menu" role="tab" aria-selected="false">Меню</button>
-      <button class="atab" data-tab="categories" role="tab" aria-selected="false">Категории</button>
-      <button class="atab" data-tab="promos" role="tab" aria-selected="false">Промо</button>
-      <button class="atab" data-tab="reviews" role="tab" aria-selected="false">Отзывы</button>
-      <button class="atab" data-tab="contacts" role="tab" aria-selected="false">Контакты</button>
-      <button class="atab" data-tab="users" role="tab" aria-selected="false">👥 Пользователи</button>
-      <button class="atab" data-tab="security" role="tab" aria-selected="false">🔒</button>
-      <button class="atab" data-tab="settings" role="tab" aria-selected="false">Настройки</button>
-    </div>
-
-    <div class="atab-content active" id="tab-hero">
-      <h3>Главный экран</h3>
-      <label>Заголовок</label><input class="adm-input" id="adm-heroTitle1" value="Еда у двери">
-      <label>Акцент (время)</label><input class="adm-input" id="adm-heroTime" value="30 мин">
-      <label>Подзаголовок</label><textarea class="adm-input" id="adm-heroSub" rows="2">Лучшие рестораны города — одно нажатие от вас. Свежо, вкусно, вовремя.</textarea>
-      <label>Кол-во заказов</label><input class="adm-input" id="adm-statOrders" value="12 000+">
-      <label>Партнёры</label><input class="adm-input" id="adm-statPartners" value="80+">
-      <label>Рейтинг</label><input class="adm-input" id="adm-statRating" value="4.9">
-      <button class="btn-adm-save" onclick="saveHero()">💾 Сохранить</button>
-    </div>
-
-    <div class="atab-content" id="tab-orders">
-      <h3>📦 Заказы</h3>
-      <div class="orders-filters">
-        <input class="adm-input" id="orderSearch" placeholder="Поиск по имени, телефону, №..." style="flex:1">
-        <select class="adm-input" id="orderStatusFilter" style="max-width:160px">
-          <option value="">Все статусы</option>
-          <option value="new">🆕 Новые</option>
-          <option value="confirmed">✅ Подтверждён</option>
-          <option value="preparing">👨‍🍳 Готовится</option>
-          <option value="delivering">🚴 В пути</option>
-          <option value="done">✔ Доставлен</option>
-          <option value="cancelled">❌ Отменён</option>
-        </select>
+  <!-- ===== ADMIN PANEL FULLSCREEN ===== -->
+  <aside class="admin-panel" id="adminPanel" role="dialog" aria-modal="true" aria-label="Панель администратора">
+    <div class="admin-sidebar">
+      <div class="admin-sidebar-header">
+        <div class="logo">SEYCHAS<span class="logo-dot">.</span>YE</div>
+        <div class="admin-session-badge">ADMIN</div>
       </div>
-      <div id="ordersAdminList"></div>
-    </div>
-
-    <div class="atab-content" id="tab-menu">
-      <h3>Управление меню</h3>
-      <div class="adm-search-wrap" style="display:flex;gap:8px">
-        <input class="adm-input" id="adm-menuSearch" placeholder="Поиск по меню..." oninput="renderAdminMenu()" style="flex:1">
-        <button class="btn-adm-cancel" onclick="exportMenuJSON()" style="white-space:nowrap;flex-shrink:0">📥 Экспорт JSON</button>
-      </div>
-      <div id="menuAdminList"></div>
-      <hr>
-      <h4 id="adm-formTitle">Добавить блюдо</h4>
-      <input type="hidden" id="adm-editId" value="">
-      <label>Название *</label><input class="adm-input" id="adm-newName" placeholder="Пицца Маргарита">
-      <label>Описание</label><input class="adm-input" id="adm-newDesc" placeholder="Томаты, моцарелла, базилик">
-      <label>Цена (₽) *</label><input class="adm-input" type="number" id="adm-newPrice" placeholder="450">
-      <label>Категория *</label>
-      <input class="adm-input" id="adm-newCat" placeholder="Пицца" list="adm-catList">
-      <datalist id="adm-catList"></datalist>
-      <label>Эмодзи</label><input class="adm-input" id="adm-newEmoji" placeholder="🍕">
-      <label>URL фото</label><input class="adm-input" id="adm-newPhoto" placeholder="https://...">
-      <label>Или загрузить</label>
-      <label class="adm-upload-btn-full">📷 Выбрать фото<input type="file" accept="image/*" id="adm-newPhotoFile" style="display:none" onchange="previewAdminPhoto(this)"></label>
-      <div class="adm-photo-preview" id="adm-photoPreview"></div>
-      <label>Метка</label>
-      <select class="adm-input" id="adm-newBadge">
-        <option value="">Без метки</option>
-        <option value="хит">Хит</option>
-        <option value="новинка">Новинка</option>
-        <option value="акция">Акция</option>
-      </select>
-      <div class="adm-form-btns">
-        <button class="btn-adm-save" id="adm-saveMenuBtn" onclick="saveMenuItemForm()">➕ Добавить блюдо</button>
-        <button class="btn-adm-cancel" id="adm-cancelEditBtn" onclick="cancelMenuEdit()" style="display:none">Отмена</button>
+      <nav class="admin-nav-list" id="adminTabs">
+        <button class="atab active" data-tab="admOrders">
+          <span>🥡 Заказы</span>
+        </button>
+        <button class="atab" data-tab="admMenu">
+          <span>🍕 Меню</span>
+        </button>
+        <button class="atab" data-tab="admCats">
+          <span>📁 Категории</span>
+        </button>
+        <button class="atab" data-tab="admPromo">
+          <span>🎟️ Промокоды</span>
+        </button>
+        <button class="atab" data-tab="admReviews">
+          <span>💬 Отзывы</span>
+        </button>
+        <button class="atab" data-tab="admUsers">
+          <span>👥 Пользователи</span>
+        </button>
+        <button class="atab" data-tab="admSettings">
+          <span>⚙️ Настройки</span>
+        </button>
+      </nav>
+      <div class="admin-sidebar-footer">
+        <button class="btn-logout" id="adminLogout">Выйти</button>
+        <button class="btn-adm btn-adm-cancel" onclick="adminUI.close()">Закрыть</button>
       </div>
     </div>
 
-    <div class="atab-content" id="tab-categories">
-      <h3>Категории</h3>
-      <div id="catAdminList"></div>
-      <hr>
-      <h4>Новая категория</h4>
-      <label>Название *</label><input class="adm-input" id="adm-catName" placeholder="Роллы">
-      <label>Эмодзи</label><input class="adm-input" id="adm-catEmoji" placeholder="🍣">
-      <button class="btn-adm-save" onclick="addCategory()">➕ Добавить</button>
-    </div>
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <h3 id="adminCurrentTabTitle">Заказы</h3>
+        <div class="admin-topbar-right">
+          <div id="adminClock" style="font-weight: 700; color: var(--gray); font-size: 0.9rem;"></div>
+          <button class="btn-adm btn-adm-save" id="adminGlobalAction" style="display:none;"></button>
+        </div>
+      </header>
+      
+      <div class="admin-content-scroller">
+        <div class="admin-content-inner">
+          
+          <!-- Tab: Orders -->
+          <div class="atab-content active" id="admOrders">
+            <div class="orders-filters">
+              <button class="filter-btn active" data-status="all">Все</button>
+              <button class="filter-btn" data-status="pending">Новые</button>
+              <button class="filter-btn" data-status="cooking">Готовятся</button>
+              <button class="filter-btn" data-status="delivering">В дороге</button>
+            </div>
+            <div class="adm-list" id="adminOrdersContainer"></div>
+          </div>
 
-    <div class="atab-content" id="tab-promos">
-      <h3>Промокоды</h3>
-      <div id="promosAdminList"></div>
-      <hr>
-      <h4>Добавить промокод</h4>
-      <label>Код *</label><input class="adm-input" id="adm-promoCode" placeholder="ЛЕТО2025">
-      <label>Тип скидки</label>
-      <select class="adm-input" id="adm-promoType">
-        <option value="percent">% от суммы</option>
-        <option value="fixed">Фиксированная сумма (₽)</option>
-      </select>
-      <label>Размер скидки *</label><input class="adm-input" type="number" id="adm-promoValue" placeholder="10">
-      <label>Мин. сумма заказа (₽)</label><input class="adm-input" type="number" id="adm-promoMin" placeholder="0">
-      <label>Описание</label><input class="adm-input" id="adm-promoDesc" placeholder="Скидка 10% на всё">
-      <button class="btn-adm-save" onclick="addPromo()">➕ Добавить промокод</button>
-      <hr>
-      <h4>Баннер акции</h4>
-      <label>Заголовок баннера</label><input class="adm-input" id="adm-promoTitle" value="Первый заказ — скидка 10%">
-      <label>Описание баннера</label><input class="adm-input" id="adm-promoDesc2" value="Введите промокод СЕЙЧАСТЬЕ при оформлении">
-      <label>Код на баннере</label><input class="adm-input" id="adm-promoBannerCode" value="СЕЙЧАСТЬЕ">
-      <button class="btn-adm-save" onclick="savePromoBanner()">💾 Обновить баннер</button>
-    </div>
+          <!-- Tab: Menu -->
+          <div class="atab-content" id="admMenu">
+            <div class="adm-card">
+              <div class="adm-card-header">
+                <h4>Добавить / Редактировать блюдо</h4>
+              </div>
+              <form class="adm-form-grid" id="menuForm">
+                <input type="hidden" id="menuId">
+                <div class="adm-input-group">
+                  <label>Название</label>
+                  <input type="text" id="menuName" class="adm-input" required placeholder="Например: Маргарита">
+                </div>
+                <div class="adm-input-group">
+                  <label>Категория</label>
+                  <select id="menuCat" class="adm-input" required></select>
+                </div>
+                <div class="adm-input-group">
+                  <label>Цена (₽)</label>
+                  <input type="number" id="menuPrice" class="adm-input" required min="0">
+                </div>
+                <div class="adm-input-group">
+                  <label>Скидка (%)</label>
+                  <input type="number" id="menuDiscount" class="adm-input" value="0" min="0" max="100">
+                </div>
+                <div class="adm-input-group" style="grid-column: span 2;">
+                  <label>Описание</label>
+                  <textarea id="menuDesc" class="adm-input" rows="2" placeholder="Состав и особенности..."></textarea>
+                </div>
+                <div class="adm-input-group">
+                   <label>Эмодзи (вместо фото)</label>
+                   <input type="text" id="menuEmoji" class="adm-input" placeholder="🍕">
+                </div>
+                <div class="adm-input-group">
+                   <label>URL Фото (опционально)</label>
+                   <input type="text" id="menuPhoto" class="adm-input" placeholder="https://...">
+                </div>
+                <div class="adm-btn-row" style="grid-column: span 2;">
+                  <button type="submit" class="btn-adm btn-adm-save">Сохранить блюдо</button>
+                  <button type="button" class="btn-adm btn-adm-cancel" onclick="adminUI.resetMenuForm()">Сброс</button>
+                </div>
+              </form>
+            </div>
+            <div class="adm-list" id="adminMenuContainer" style="margin-top: 20px;"></div>
+          </div>
 
-    <div class="atab-content" id="tab-reviews">
-      <h3>Отзывы</h3>
-      <div id="reviewsAdminList"></div>
-    </div>
+          <!-- Tab: Cats -->
+          <div class="atab-content" id="admCats">
+            <div class="adm-card">
+              <form class="adm-form-grid" id="catForm">
+                <input type="hidden" id="catId">
+                <div class="adm-input-group">
+                  <label>Название категории</label>
+                  <input type="text" id="catNameField" class="adm-input" required>
+                </div>
+                <div class="adm-input-group">
+                  <label>Эмодзи</label>
+                  <input type="text" id="catEmojiField" class="adm-input" required>
+                </div>
+                <div class="adm-btn-row">
+                  <button type="submit" class="btn-adm btn-adm-save">Сохранить</button>
+                </div>
+              </form>
+            </div>
+            <div class="adm-list" id="adminCatsContainer" style="margin-top:20px;"></div>
+          </div>
 
-    <div class="atab-content" id="tab-contacts">
-      <h3>Контакты</h3>
-      <label>Телефон</label><input class="adm-input" id="adm-phone" value="+7 (900) 123-45-67">
-      <label>Email</label><input class="adm-input" id="adm-email" value="hello@seychasye.ru">
-      <label>Адрес</label><input class="adm-input" id="adm-address" value="Москва, ул. Вкусная, 1">
-      <label>Часы работы</label><input class="adm-input" id="adm-hours" value="Пн–Вс: 10:00–23:00">
-      <label>Текст в футере</label><input class="adm-input" id="adm-footer" value="© 2025 Сейчастье — Доставка еды. Все права защищены.">
-      <button class="btn-adm-save" onclick="saveContacts()">💾 Сохранить</button>
-    </div>
+          <!-- Tab: Promo -->
+          <div class="atab-content" id="admPromo">
+            <div class="adm-card">
+              <form class="adm-form-grid" id="promoForm">
+                <input type="hidden" id="promoId">
+                <div class="adm-input-group">
+                  <label>Код прома</label>
+                  <input type="text" id="promoCodeField" class="adm-input" style="text-transform: uppercase;" required>
+                </div>
+                <div class="adm-input-group">
+                  <label>Размер скидки (%)</label>
+                  <input type="number" id="promoValField" class="adm-input" required min="1" max="100">
+                </div>
+                <div class="adm-input-group">
+                  <label>Тип</label>
+                  <select id="promoTypeField" class="adm-input">
+                     <option value="percent">Процент %</option>
+                     <option value="fixed">Фиксированная сумма ₽</option>
+                  </select>
+                </div>
+                <div class="adm-btn-row">
+                  <button type="submit" class="btn-adm btn-adm-save">Добавить промо</button>
+                </div>
+              </form>
+            </div>
+            <div class="adm-list" id="adminPromoContainer" style="margin-top:20px;"></div>
+          </div>
 
-    <div class="atab-content" id="tab-users">
-      <h3>👥 Пользователи</h3>
-      <div class="orders-filters">
-        <input class="adm-input" id="usersSearch" placeholder="Поиск по имени, логину..." style="flex:1">
-        <select class="adm-input" id="usersRoleFilter" style="max-width:160px">
-          <option value="">Все роли</option>
-          <option value="client">👤 Клиенты</option>
-          <option value="manager">📋 Менеджеры</option>
-          <option value="admin">⚙ Админы</option>
-        </select>
-      </div>
-      <div id="usersAdminList"></div>
-      <hr>
-      <h4>Создать пользователя</h4>
-      <label>Логин *</label><input class="adm-input" id="au-username" placeholder="new_manager">
-      <label>Имя</label><input class="adm-input" id="au-fullname" placeholder="Иван Иванов">
-      <label>Email</label><input class="adm-input" id="au-email" placeholder="ivan@mail.ru">
-      <label>Пароль *</label><input class="adm-input" id="au-password" type="password" placeholder="Минимум 8 символов">
-      <label>Роль</label>
-      <select class="adm-input" id="au-role">
-        <option value="client">Клиент</option>
-        <option value="manager" selected>Менеджер</option>
-        <option value="admin">Администратор</option>
-      </select>
-      <button class="btn-adm-save" onclick="adminCreateUser()">➕ Создать</button>
-    </div>
+          <!-- Tab: Reviews -->
+          <div class="atab-content" id="admReviews">
+             <div class="adm-list" id="adminReviewsContainer"></div>
+          </div>
 
-    <!-- Reset Password Modal -->
-    <div class="adm-modal" id="resetPassModal" style="display:none">
-      <div class="adm-modal-card">
-        <h4>Сброс пароля</h4>
-        <p class="adm-hint-text" id="resetPassUser"></p>
-        <label>Новый пароль</label><input class="adm-input" id="resetPassInput" type="password" placeholder="Минимум 8 символов">
-        <div class="adm-form-btns" style="margin-top:10px">
-          <button class="btn-adm-save" onclick="confirmResetPassword()">Сбросить</button>
-          <button class="btn-adm-cancel" onclick="$('resetPassModal').style.display='none'">Отмена</button>
+          <!-- Tab: Users -->
+          <div class="atab-content" id="admUsers">
+             <div class="adm-list" id="adminUsersContainer"></div>
+          </div>
+
+          <!-- Tab: Settings (Expanded) -->
+          <div class="atab-content" id="admSettings">
+            <div class="adm-card">
+              <div class="adm-card-header">
+                <h4>Глобальные настройки сайта</h4>
+              </div>
+              <form class="adm-form-grid" id="settingsForm">
+                <div class="adm-input-group">
+                  <label>Название заведения</label>
+                  <input type="text" name="site_name" class="adm-input">
+                </div>
+                <div class="adm-input-group">
+                  <label>Мин. сумма заказа (₽)</label>
+                  <input type="number" name="min_order" class="adm-input">
+                </div>
+                <div class="adm-input-group">
+                  <label>Стоимость доставки (₽)</label>
+                  <input type="number" name="delivery_fee" class="adm-input">
+                </div>
+                <div class="adm-input-group">
+                  <label>Бесплатная доставка от (₽)</label>
+                  <input type="number" name="free_delivery_from" class="adm-input">
+                </div>
+                <div class="adm-input-group">
+                  <label>Телефон для связи</label>
+                  <input type="text" name="phone" class="adm-input">
+                </div>
+                <div class="adm-input-group">
+                  <label>Режим работы (текст)</label>
+                  <input type="text" name="work_hours" class="adm-input">
+                </div>
+                <div class="adm-input-group" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 100px;">
+                  <input type="checkbox" name="is_open" id="isOpenCheck" style="width: 20px; height: 20px;">
+                  <label for="isOpenCheck" style="margin: 0; cursor: pointer;">Заведение открыто</label>
+                </div>
+                <div class="adm-input-group" style="flex-direction: row; align-items: center; gap: 10px;">
+                  <input type="checkbox" name="maintenance_mode" id="maintCheck" style="width: 20px; height: 20px;">
+                  <label for="maintCheck" style="margin: 0; cursor: pointer;">Режим тех. обслуживания (Maintenance)</label>
+                </div>
+                <div class="adm-btn-row" style="grid-column: span 2;">
+                  <button type="submit" class="btn-adm btn-adm-save">Сохранить все настройки</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="adm-card" style="margin-top: 24px;">
+              <div class="adm-card-header">
+                <h4>Дизайн и Цвета</h4>
+              </div>
+              <div class="adm-form-grid">
+                <div class="adm-input-group">
+                  <label>Основной цвет (Yellow)</label>
+                  <input type="color" id="primaryColorPick" class="adm-input" value="#F5C518" style="height: 48px; padding: 4px;">
+                </div>
+                <div class="adm-input-group">
+                  <label>Темный режим по умолчанию</label>
+                  <div style="display:flex; gap:10px; margin-top:5px;">
+                     <button class="btn-adm btn-adm-cancel" style="flex:1;">Темный</button>
+                     <button class="btn-adm btn-adm-cancel" style="flex:1;">Светлый</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
+  </aside>
 
-    <div class="atab-content" id="tab-security">
-      <h3>🔒 Безопасность</h3>
-      <p class="adm-hint-text">Смените данные для входа в панель администратора.</p>
-      <label>Новый логин</label><input class="adm-input" id="sec-newLogin" placeholder="Новый логин">
-      <label>Новый пароль</label>
-      <div class="adm-pass-wrap"><input class="adm-input" type="password" id="sec-newPass" placeholder="Минимум 8 символов"><button class="adm-eye-btn" type="button" onclick="toggleFieldPass('sec-newPass')">👁</button></div>
-      <label>Подтвердить пароль</label>
-      <div class="adm-pass-wrap"><input class="adm-input" type="password" id="sec-confirmPass" placeholder="Повторите пароль"><button class="adm-eye-btn" type="button" onclick="toggleFieldPass('sec-confirmPass')">👁</button></div>
-      <div class="admin-login-error" id="secError" role="alert"></div>
-      <button class="btn-adm-save" onclick="saveCredentials()">🔒 Сохранить</button>
-      <hr>
-      <h4>Сессия</h4>
-      <p class="adm-hint-text" id="sessionInfo"></p>
-      <button class="btn-adm-danger" onclick="adminLogout()">🚪 Завершить сессию</button>
-    </div>
-
-    <div class="atab-content" id="tab-settings">
-      <h3>Настройки сайта</h3>
-      <label>Акцентный цвет</label><input type="color" class="adm-input adm-color" id="adm-accentColor" value="#F5C518">
-      <label>Тёмный цвет</label><input type="color" class="adm-input adm-color" id="adm-darkColor" value="#1E1E1E">
-      <label>О нас — заголовок</label><input class="adm-input" id="adm-aboutTitle" value="Мы доставляем с душой">
-      <label>О нас — текст</label><textarea class="adm-input" id="adm-aboutText" rows="3">С 2019 года мы помогаем людям наслаждаться едой из лучших ресторанов города, не выходя из дома.</textarea>
-      <button class="btn-adm-save" onclick="saveAdminSettings()">💾 Сохранить</button>
-      <hr>
-      <h4>Опасная зона</h4>
-      <button class="btn-adm-danger" onclick="resetAll()">🗑 Сбросить все данные</button>
-    </div>
-  </div>
-</aside>
 
 <!-- TOAST -->
 <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
