@@ -312,7 +312,7 @@ a { color: inherit; }
   transition: var(--transition);
 }
 .sort-select:hover { background: #e8e8e6; }
-.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 22px; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .menu-card {
   background: var(--white); border-radius: var(--radius);
   border: 1px solid #ececec; overflow: hidden;
@@ -617,10 +617,23 @@ a { color: inherit; }
 @media (max-width: 520px) { .client-panel { width: 100%; right: -100%; } }
 .client-panel.open { right: 0; }
 .client-header { padding: 24px; background: var(--white); border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.client-header-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.client-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.8rem; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.client-name-badge { background: var(--yellow-light); color: var(--yellow-dark); padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 800; width: fit-content; }
+.client-header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.client-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.6rem; letter-spacing: 0.5px; white-space: nowrap; }
+.client-name-badge { background: var(--yellow-light); color: var(--yellow-dark); padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 800; }
 .client-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+@media (max-width: 480px) {
+  .client-header {
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto;
+    padding: 16px; gap: 10px;
+  }
+  .client-header-left { grid-column: 1; grid-row: 1; }
+  .client-header-left h2 { font-size: 1.3rem; }
+  .client-header-left h2 span { display: none; } /* Hide emoji */
+  .client-header-right { grid-column: 2; grid-row: 1 / span 2; align-self: center; flex-direction: column; gap: 6px; }
+  .client-name-badge { grid-column: 1; grid-row: 2; }
+  .btn-logout { width: 100%; white-space: nowrap; }
+}
 
 .btn-logout {
   background: #fee2e2; color: #991b1b; border: none; border-radius: 10px;
