@@ -277,10 +277,12 @@ def orders_api():
         commit(); return jsonify({'ok': True, 'order_num': num})
     
     u = _decode_token(request.cookies.get('sc_token','')) or {}
-    if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+    if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
     status = request.args.get('status', '')
-    query = "SELECT * FROM orders " + (f"WHERE status='{status}'" if status else "") + " ORDER BY created_at DESC"
-    rows = q(query).fetchall()
+    if status:
+        rows = q("SELECT * FROM orders WHERE status=? ORDER BY created_at DESC", (status,)).fetchall()
+    else:
+        rows = q("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
     res = []
     for r in rows:
         d = dict(r); d['items'] = json.loads(d.get('items_json','[]')); res.append(d)
