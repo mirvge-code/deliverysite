@@ -41,6 +41,7 @@ a { color: inherit; }
 }
 .logo-dot { color: var(--yellow); }
 .nav-links { display: flex; gap: 24px; list-style: none; flex: 1; }
+.nav-links-mobile { display: none; }
 .nav-links a {
   text-decoration: none; color: var(--gray); font-weight: 600; font-size: 0.9rem;
   transition: var(--transition); position: relative; white-space: nowrap;
@@ -843,7 +844,7 @@ a { color: inherit; }
   .desktop-links { display: none; }
   
   .nav-links-mobile {
-    position: fixed; top: var(--nav-h); left: 0; right: 0;
+    display: flex; position: fixed; top: var(--nav-h); left: 0; right: 0;
     max-height: 0; background: var(--white); overflow-y: auto; opacity: 0; pointer-events: none;
     flex-direction: column; gap: 0; padding: 0; z-index: 1000; list-style: none;
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); border-bottom: 0 solid var(--yellow);
