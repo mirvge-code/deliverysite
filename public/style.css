@@ -568,6 +568,66 @@ a { color: inherit; }
 .track-step.done .track-label, .track-step.active .track-label { color: var(--dark); }
 .tracking-eta { text-align: center; font-size: 1rem; color: var(--gray); margin-bottom: 24px; }
 
+/* ===== AUTH MODAL ===== */
+.auth-card { padding: 0 !important; overflow: hidden; }
+.auth-tabs { display: flex; border-bottom: 1px solid #eee; }
+.auth-tab {
+  flex: 1; padding: 18px; text-align: center; border: none; background: none;
+  font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 0.95rem;
+  color: var(--gray); cursor: pointer; transition: var(--transition);
+  position: relative;
+}
+.auth-tab.active { color: var(--dark); }
+.auth-tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--yellow); }
+.auth-form { padding: 40px; }
+.auth-pass-wrap { position: relative; }
+.auth-eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; opacity: 0.3; transition: var(--transition); }
+.auth-eye-btn:hover { opacity: 1; }
+.auth-input {
+  width: 100%; padding: 14px 18px; border: 2px solid var(--gray-light); border-radius: 14px;
+  font-family: 'Manrope', sans-serif; font-size: 0.95rem; outline: none; transition: var(--transition);
+}
+.auth-input:focus { border-color: var(--yellow); background: #fff; }
+.btn-auth-submit { width: 100%; background: var(--dark); color: var(--white); border: none; border-radius: 14px; padding: 16px; font-weight: 800; font-size: 1rem; cursor: pointer; transition: var(--transition); margin-top: 10px; }
+.btn-auth-submit:hover { background: var(--yellow); color: var(--dark); transform: translateY(-2px); }
+.auth-error { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; margin-bottom: 16px; display: none; }
+.auth-error.show { display: block; }
+
+/* ===== CLIENT PROFILE DASHBOARD ===== */
+.client-panel {
+  position: fixed; top: 0; right: -520px; width: 500px; height: 100vh;
+  background: #f8fafc; z-index: 500; box-shadow: -10px 0 50px rgba(0,0,0,0.1);
+  display: flex; flex-direction: column; transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.client-panel.open { right: 0; }
+.client-header { padding: 32px 24px; background: var(--white); border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.client-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.8rem; letter-spacing: 0.5px; }
+.client-name-badge { background: var(--yellow-light); color: var(--yellow-dark); padding: 4px 12px; border-radius: 50px; font-size: 0.85rem; font-weight: 800; }
+
+.client-body { flex: 1; overflow-y: auto; padding: 24px; }
+.client-tabs { display: flex; gap: 10px; margin-bottom: 24px; }
+.ctab {
+  flex: 1; padding: 12px; background: var(--white); border: 1px solid #e2e8f0; border-radius: 12px;
+  font-weight: 800; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+}
+.ctab.active { background: var(--yellow); border-color: var(--yellow); color: var(--dark); }
+
+.ctab-content { display: none; flex-direction: column; gap: 20px; }
+.ctab-content.active { display: flex; animation: fadeInUp 0.4s ease both; }
+
+.client-order-card { background: var(--white); border: 1px solid #e2e8f0; border-radius: 20px; padding: 20px; margin-bottom: 16px; transition: var(--transition); }
+.client-order-card:hover { transform: translateX(-5px); border-color: var(--yellow); box-shadow: var(--shadow-md); }
+.co-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.co-num { font-weight: 800; color: var(--dark); }
+.co-status { background: var(--gray-light); padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 800; }
+.co-items { font-size: 0.85rem; color: var(--gray); margin-bottom: 10px; }
+.co-footer { display: flex; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 10px; font-weight: 700; font-size: 0.9rem; }
+
+.client-input { width: 100%; background: var(--white); border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-family: 'Manrope', sans-serif; font-size: 0.95rem; transition: var(--transition); }
+.client-input:focus { border-color: var(--yellow); box-shadow: 0 0 0 3px rgba(245,197,24,0.1); outline: none; }
+.btn-client-save { background: var(--dark); color: var(--white); border: none; border-radius: 12px; padding: 16px; width: 100%; font-weight: 800; cursor: pointer; transition: var(--transition); }
+.btn-client-save:hover { background: var(--yellow); color: var(--dark); }
+
 /* ===== ADMIN LOGIN ===== */
 .admin-login-card { max-width: 400px; display: flex; flex-direction: column; gap: 14px; }
 .admin-login-logo { font-size: 2.4rem; text-align: center; margin-bottom: 4px; }
