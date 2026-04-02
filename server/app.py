@@ -1,5 +1,5 @@
 """
-Сейчастье — бэкенд v4.9 (CRITICAL BUGFIX: Syntax Error again)
+Сейчастье — бэкенд v5.0 (Detailed Telegram Notifications)
 Flask + Multi-DB + TG Webhooks
 """
 
@@ -55,7 +55,7 @@ def send_tg(msg):
         payload = {"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "HTML"}
         data = json.dumps(payload).encode()
         req = urlreq.Request(url, data=data, headers={'Content-Type': 'application/json'})
-        urlreq.urlopen(req, timeout=8)
+        urlreq.urlopen(req, timeout=10)
     except Exception as e:
         print(f"TG Error: {e}")
 
@@ -230,23 +230,71 @@ def orders_api():
         for i in items:
             it = q("SELECT name, price FROM menu WHERE id=?", (i['id'],)).fetchone()
             if it:
-                price = it['price']; subtotal += price * i['qty']
-                final_items.append({'id': i['id'], 'name': it['name'], 'price': price, 'qty': i['qty']})
+                p = it['price']
+                subtotal += p * i['qty']
+                final_items.append({'id': i['id'], 'name': it['name'], 'price': p, 'qty': i['qty']})
+        
         discount = 0; promo_code = d.get('promo_code', '').strip().upper()
         if promo_code:
-            p = q("SELECT * FROM promos WHERE code=? AND active=1", (promo_code,)).fetchone()
-            if p and subtotal >= p['min_sum']:
-                discount = (subtotal * p['value'] / 100) if p['type'] == 'percent' else p['value']
-                q("UPDATE promos SET used_cnt = used_cnt + 1 WHERE id=?", (p['id'],))
-        total = max(0, subtotal - discount); num = datetime.now().strftime('%m%d-') + secrets.token_hex(3).upper(); ps = "%s" if getattr(g, 'is_pg', False) else "?"
+            prm = q("SELECT * FROM promos WHERE code=? AND active=1", (promo_code,)).fetchone()
+            if prm and subtotal >= prm['min_sum']:
+                discount = (subtotal * prm['value'] / 100) if prm['type'] == 'percent' else prm['value']
+                q("UPDATE promos SET used_cnt = used_cnt + 1 WHERE id=?", (prm['id'],))
+        
+        total = max(0, subtotal - discount)
+        num = datetime.now().strftime('%m%d-') + secrets.token_hex(3).upper()
+        ps = "%s" if getattr(g, 'is_pg', False) else "?"
+        
+        # Extended fields from request
+        name = d.get('name','').strip()
+        phone = d.get('phone','').strip()
+        email = d.get('email','').strip()
+        del_type = d.get('delivery_type','delivery')
+        addr = d.get('address','').strip()
+        flat = d.get('flat','').strip()
+        floor = d.get('floor','').strip()
+        intercom = d.get('intercom','').strip()
+        del_time = d.get('delivery_time','asap')
+        comment = d.get('comment','').strip()
+        payment = d.get('payment','cash')
+        
         t = request.cookies.get('sc_token'); u_data = _decode_token(t) if t else None; u_id = u_data['sub'] if u_data else None
+        
         q(f"INSERT INTO orders (order_num, user_id, name, phone, email, delivery_type, address, flat, floor, intercom, delivery_time, comment, payment, promo_code, subtotal, discount, total, items_json) VALUES ({ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps})",
-          (num, u_id, d.get('name',''), d.get('phone',''), d.get('email',''), d.get('delivery_type','delivery'), d.get('address',''), d.get('flat',''), d.get('floor',''), d.get('intercom',''), d.get('delivery_time','asap'), d.get('comment',''), d.get('payment','cash'), promo_code, subtotal, discount, total, json.dumps(final_items)))
+          (num, u_id, name, phone, email, del_type, addr, flat, floor, intercom, del_time, comment, payment, promo_code, subtotal, discount, total, json.dumps(final_items)))
         commit()
-        # TG Notify
-        items_str = "\n".join([f"• {i['name']} x{i['qty']}" for i in final_items])
-        send_tg(f"🛍 <b>Новый заказ #{num}</b>\n\n👤 {d.get('name')}\n📞 {d.get('phone')}\n🏠 {d.get('address')}\n💰 {total} ₽\n\n🛒 Состав:\n{items_str}")
+        
+        # Detailed TG Notify
+        items_str = "\n".join([f"• {i['name']} x{i['qty']} — {i['price']*i['qty']} ₽" for i in final_items])
+        del_p = "🚗 Доставка" if del_type == 'delivery' else "🚶 Самовывоз"
+        pay_p = "💵 Наличными" if payment == 'cash' else ("💳 Картой курьеру" if payment == 'card' else "🔗 Онлайн")
+        
+        msg = f"🛒 <b>Новый заказ #{num}</b>\n" \
+              f"───────────────────\n" \
+              f"👤 <b>Клиент:</b> {name}\n" \
+              f"📞 <b>Телефон:</b> {phone}\n"
+        if email: msg += f"📧 <b>Email:</b> {email}\n"
+        
+        msg += f"\n📦 <b>Способ:</b> {del_p}\n"
+        if del_type == 'delivery':
+            msg += f"🏠 <b>Адрес:</b> {addr}\n"
+            if flat or floor or intercom:
+                msg += f"🏢 <b>Доп:</b> кв.{flat or '-'}, эт.{floor or '-'}, код:{intercom or '-'}\n"
+        
+        msg += f"⏰ <b>Время:</b> {del_time if del_time != 'asap' else 'Как можно скорее'}\n" \
+               f"💳 <b>Оплата:</b> {pay_p}\n"
+        
+        msg += f"\n🍕 <b>Товары:</b>\n{items_str}\n" \
+               f"───────────────────\n" \
+               f"💰 <b>Подытог:</b> {subtotal} ₽\n"
+        if discount > 0: msg += f"🎁 <b>Скидка:</b> −{discount} ₽ (код: {promo_code})\n"
+        msg += f"✅ <b>ИТОГО: {total} ₽</b>\n"
+        
+        if comment: msg += f"\n💬 <b>Комментарий:</b>\n<i>{comment}</i>\n"
+        
+        send_tg(msg)
         return jsonify({'ok': True, 'order_num': num})
+    
     t = request.cookies.get('sc_token'); u = _decode_token(t) if t else None
     if not u or u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
     status = request.args.get('status', '')
