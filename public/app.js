@@ -602,7 +602,7 @@ function updateAuthUI(){
     // User menu button
     const btn=document.createElement('button'); btn.id='userBtn'; btn.className='btn-user-nav';
     const initial=(state.currentUser.full_name||state.currentUser.username||'U').charAt(0).toUpperCase();
-    btn.innerHTML='<span class="user-avatar-sm">'+initial+'</span><span class="user-nav-name">'+esc(state.currentUser.full_name||state.currentUser.username)+'</span>';
+    btn.innerHTML='<span class="user-avatar-sm">'+initial+'</span><span class="user-nav-name">Профиль</span>';
     btn.addEventListener('click',()=>{
       if(role==='admin') openAdmin();
       else if(role==='manager') openAdmin();
@@ -612,13 +612,14 @@ function updateAuthUI(){
     // Admin/manager get extra button
     if(role==='admin'||role==='manager'){
       const abtn=document.createElement('button'); abtn.id='adminBtn'; abtn.className='btn-admin-nav';
-      abtn.textContent=role==='admin'?'⚙ Админ':'📋 Заказы';
+      abtn.innerHTML='<span>⚙</span><span class="user-nav-name">'+(role==='admin'?'Админ':'Заказы')+'</span>';
       abtn.addEventListener('click',openAdmin);
       navRight.prepend(abtn);
     }
   } else {
     const btn=document.createElement('button'); btn.id='authNavBtn'; btn.className='btn-auth-nav';
-    btn.textContent='👤 Войти'; btn.addEventListener('click',()=>openAuthModal('login'));
+    btn.innerHTML='<span>👤</span><span class="auth-btn-text"> Войти</span>';
+    btn.addEventListener('click',()=>openAuthModal('login'));
     navRight.prepend(btn);
   }
 }
@@ -1308,24 +1309,6 @@ window.addEventListener('scroll',()=>{
   $('backToTop')?.classList.toggle('show', window.scrollY > 400);
 });
 
-// ── Mobile Menu ───────────────────────────────────────────────────
-function toggleMenu(){
-  const nav=$('navLinks'); const ham=$('hamburger');
-  if(!nav||!ham) return;
-  const open=nav.classList.toggle('open');
-  ham.classList.toggle('active');
-  ham.setAttribute('aria-expanded',open);
-  if(open) $('overlay').classList.add('show');
-  else if(!document.querySelector('.cart-panel.open') && !document.querySelector('.client-panel.open') && !document.querySelector('.admin-panel.open')) $('overlay').classList.remove('show');
-}
-function closeMenu(){
-  $('navLinks')?.classList.remove('open');
-  $('hamburger')?.classList.remove('active');
-  $('hamburger')?.setAttribute('aria-expanded','false');
-  if(!document.querySelector('.cart-panel.open') && !document.querySelector('.client-panel.open') && !document.querySelector('.admin-panel.open')) $('overlay').classList.remove('show');
-}
-$('hamburger')?.addEventListener('click',toggleMenu);
-
 // ═══════════════════════════════════════════════════════════════════
 // EVENT LISTENERS
 // ═══════════════════════════════════════════════════════════════════
@@ -1334,7 +1317,7 @@ $('closeCart').addEventListener('click',closeCart);
 $('adminCloseBtn')?.addEventListener('click', () => adminUI.close());
 $('checkoutBtn').addEventListener('click',openCheckout);
 $('adminLogout')?.addEventListener('click', doLogout);
-$('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); closeMenu(); });
+$('overlay').addEventListener('click',()=>{ closeCart(); adminUI.close(); closeClientPanel(); });
 
 document.querySelector('.filter-btn[data-cat="all"]').addEventListener('click',function(){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));

@@ -41,7 +41,6 @@ a { color: inherit; }
 }
 .logo-dot { color: var(--yellow); }
 .nav-links { display: flex; gap: 24px; list-style: none; flex: 1; }
-.nav-links-mobile { display: none; }
 .nav-links a {
   text-decoration: none; color: var(--gray); font-weight: 600; font-size: 0.9rem;
   transition: var(--transition); position: relative; white-space: nowrap;
@@ -625,23 +624,22 @@ a { color: inherit; }
 
 @media (max-width: 480px) {
   .client-header {
-    display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto;
-    padding: 16px; gap: 10px;
+    display: flex; flex-direction: column; gap: 15px; padding: 20px; align-items: stretch;
   }
-  .client-header-left { grid-column: 1; grid-row: 1; }
-  .client-header-left h2 { font-size: 1.3rem; }
-  .client-header-left h2 span { display: none; } /* Hide emoji */
-  .client-header-right { grid-column: 2; grid-row: 1 / span 2; align-self: center; flex-direction: column; gap: 6px; }
-  .client-name-badge { grid-column: 1; grid-row: 2; }
-  .btn-logout { width: 100%; white-space: nowrap; }
+  .client-header-left { justify-content: center; width: 100%; text-align: center; }
+  .client-header-right { justify-content: center; width: 100%; }
+  .btn-logout { width: 100%; justify-content: center; padding: 12px; font-size: 1rem; }
+  .btn-close-p { position: absolute; top: 15px; right: 15px; }
 }
 
 .btn-logout {
-  background: #fee2e2; color: #991b1b; border: none; border-radius: 10px;
-  padding: 8px 14px; font-family: 'Manrope', sans-serif; font-weight: 700;
-  font-size: 0.8rem; cursor: pointer; transition: var(--transition);
+  background: #fdf2f2; color: #dc2626; border: 1px solid #fee2e2; border-radius: 10px;
+  padding: 10px 18px; font-family: 'Manrope', sans-serif; font-weight: 800;
+  font-size: 0.9rem; cursor: pointer; transition: var(--transition);
+  display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.1);
 }
-.btn-logout:hover { background: #991b1b; color: #fff; }
+.btn-logout:hover { background: #dc2626; color: #fff; transform: translateY(-1px); box-shadow: 0 10px 15px -3px rgba(220, 38, 38, 0.2); }
+.btn-logout::before { content: '🚪'; font-size: 1rem; }
 
 @media (max-width: 400px) {
   .client-header { padding: 16px; }
@@ -842,24 +840,6 @@ a { color: inherit; }
   .hero-visual { min-height: 320px; margin-top: 20px; }
   .about-cards { margin-top: 20px; }
   .desktop-links { display: none; }
-  
-  .nav-links-mobile {
-    display: flex; position: fixed; top: var(--nav-h); left: 0; right: 0;
-    max-height: 0; background: var(--white); overflow-y: auto; opacity: 0; pointer-events: none;
-    flex-direction: column; gap: 0; padding: 0; z-index: 1000; list-style: none;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); border-bottom: 0 solid var(--yellow);
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-  }
-  .nav-links-mobile.open { max-height: calc(100vh - var(--nav-h)); opacity: 1; pointer-events: all; border-bottom-width: 4px; border-bottom-color: var(--yellow); padding: 10px 0; }
-  .nav-links-mobile li { width: 100%; border-bottom: 1px solid var(--gray-light); }
-  .nav-links-mobile li:last-child { border-bottom: none; }
-  .nav-links-mobile a { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; font-size: 1.1rem; color: var(--dark); font-weight: 800; text-decoration: none; }
-  .nav-links-mobile a:hover { background: var(--gray-light); }
-  
-  .hamburger { display: flex; }
-  .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
-  .hamburger.active span:nth-child(2) { opacity: 0; }
-  .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(7px, -7px); }
 }
 
 @media (max-width: 600px) {
@@ -870,7 +850,7 @@ a { color: inherit; }
   .container { padding: 0 16px; }
   .nav-inner { padding: 0 12px; gap: 8px; }
   .nav-right { gap: 6px; }
-  .btn-cart span:not(.cart-count), .btn-auth-nav span, .open-status span, .user-nav-name { display: none; }
+  .btn-cart span:not(.cart-count), .btn-auth-nav .auth-btn-text, .open-status span, .user-nav-name { display: none; }
   .btn-cart, .btn-auth-nav, .btn-user-nav { padding: 8px 12px; }
   .footer-inner { flex-direction: column; text-align: center; gap: 20px; }
 }
