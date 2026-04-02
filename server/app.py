@@ -1,6 +1,6 @@
 """
-Сейчастье — бэкенд v4.7 (BUGFIX: Syntax Error + Standard layout)
-Flask + Multi-DB + Full API Coverage
+Сейчастье — бэкенд v4.8 (Telegram Notifications)
+Flask + Multi-DB + TG Webhooks
 """
 
 import os, json, hashlib, hmac, secrets, time, sqlite3, re, sys
@@ -38,11 +38,27 @@ else: DB_PATH = None
 SECRET_KEY     = os.environ.get('SECRET_KEY', 'default-dev-key-change-me')
 JWT_EXPIRE_MIN = int(os.environ.get('JWT_EXPIRE_MIN', 1440))
 
+# Telegram Config
+TG_TOKEN   = os.environ.get('TG_TOKEN', '')
+TG_CHAT_ID = os.environ.get('TG_CHAT_ID', '')
+
 app = Flask(__name__)
 application = app
 
 app.config['SECRET_KEY'] = SECRET_KEY
 CORS(app, supports_credentials=True)
+
+# ─── TG Helper ───────────────────────────────────────────────────────
+def send_tg(msg):
+    if not TG_TOKEN or not TG_CHAT_ID or not HAS_URLLIB: return
+    try:
+        url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+        payload = {"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "HTML"}
+        data = json.dumps(payload).encode()
+        req = urlreq.Request(url, data=data, headers={'Content-Type': 'application/json'})
+        urlreq.urlopen(req, timeout=8)
+    except Exception as e:
+        print(f"TG Error: {e}")
 
 # ─── DB Abstraction ──────────────────────────────────────────────────
 _db_initialized = False
@@ -68,10 +84,8 @@ def init_db():
             f"CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0, locked_until TEXT, updated_at {dt})"
         ]
         for s in stmts: cur.execute(s)
-        db_c.commit()
-        _db_initialized = True
-    except Exception as e:
-        print(f"Lazy DB Init Error: {e}")
+        db_c.commit(); _db_initialized = True
+    except Exception as e: print(f"Lazy DB Init Error: {e}")
     finally:
         if db_c: db_c.close()
 
@@ -117,21 +131,12 @@ def to_dict(row):
     return d
 
 # ─── Auth Helpers ────────────────────────────────────────────────────
-def _make_token(u_id, user, role):
-    payload = {'sub': u_id, 'username': user, 'role': role, 'exp': time.time() + JWT_EXPIRE_MIN*60, 'iat': time.time()}
-    import base64
-    pl = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
-    sig = hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest()
-    return f"local.{pl}.{sig}"
-
 def _decode_token(t):
     try:
-        parts = t.split('.')
-        if len(parts) != 3 or parts[0] != 'local': return None
+        parts = t.split('.'); if len(parts) != 3 or parts[0] != 'local': return None
         _, pl, sig = parts
         if not hmac.compare_digest(sig, hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest()): return None
-        import base64
-        data = json.loads(base64.urlsafe_b64decode(pl + '=' * (4 - len(pl)%4)).decode())
+        import base64; data = json.loads(base64.urlsafe_b64decode(pl + '=' * (4 - len(pl)%4)).decode())
         if data['exp'] < time.time(): return None
         return data
     except: return None
@@ -171,10 +176,10 @@ def login():
     d = request.json or {}; user, pw = d.get('username','').strip(), d.get('password','')
     u = q("SELECT * FROM users WHERE username=? OR email=?", (user, user)).fetchone()
     if not u or _hash_password(pw, u['pass_salt']) != u['pass_hash']: return jsonify({'error': 'Неверный логин'}), 401
-    t = _make_token(u['id'], u['username'], u['role'])
+    payload = {'sub': u['id'], 'username': u['username'], 'role': u['role'], 'exp': time.time() + JWT_EXPIRE_MIN*60, 'iat': time.time()}
+    import base64; pl = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('='); sig = hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest(); t = f"local.{pl}.{sig}"
     r = make_response(jsonify({'ok': True, 'id': u['id'], 'username': u['username'], 'role': u['role'], 'full_name': u['full_name']}))
-    r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/')
-    return r
+    r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/'); return r
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -182,9 +187,10 @@ def register():
     if len(pw) < 8: return jsonify({'error': 'Слишком короткий пароль'}), 400
     if q("SELECT id FROM users WHERE username=?", (user,)).fetchone(): return jsonify({'error': 'Логин занят'}), 409
     salt = secrets.token_hex(16); h = _hash_password(pw, salt); ps = "%s" if getattr(g, 'is_pg', False) else "?"
-    if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({ps},{ps},{ps},{ps}) RETURNING id", (user, full, h, salt)).fetchone()['id']
+    if getattr(g,'is_pg',False): uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({ps},{ps},{ps},{ps}) RETURNING id", (user, full, h, salt)).fetchone()['id']
     else: uid = q(f"INSERT INTO users (username, full_name, pass_hash, pass_salt) VALUES ({ps},{ps},{ps},{ps})", (user, full, h, salt)).lastrowid
-    commit(); t = _make_token(uid, user, 'client')
+    commit(); payload = {'sub': uid, 'username': user, 'role': 'client', 'exp': time.time() + JWT_EXPIRE_MIN*60, 'iat': time.time()}
+    import base64; pl = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('='); sig = hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest(); t = f"local.{pl}.{sig}"
     r = make_response(jsonify({'ok': True, 'role': 'client'})); r.set_cookie('sc_token', t, httponly=True, samesite='Lax', max_age=86400*30, path='/'); return r
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -227,13 +233,13 @@ def orders_api():
         t = request.cookies.get('sc_token'); u_data = _decode_token(t) if t else None; u_id = u_data['sub'] if u_data else None
         q(f"INSERT INTO orders (order_num, user_id, name, phone, email, delivery_type, address, flat, floor, intercom, delivery_time, comment, payment, promo_code, subtotal, discount, total, items_json) VALUES ({ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps},{ps})",
           (num, u_id, d.get('name',''), d.get('phone',''), d.get('email',''), d.get('delivery_type','delivery'), d.get('address',''), d.get('flat',''), d.get('floor',''), d.get('intercom',''), d.get('delivery_time','asap'), d.get('comment',''), d.get('payment','cash'), promo_code, subtotal, discount, total, json.dumps(final_items)))
-        commit(); return jsonify({'ok': True, 'order_num': num})
-    
-    t = request.cookies.get('sc_token')
-    u = _decode_token(t) if t else None
-    if not u or u.get('role') not in ['admin', 'manager']:
-        return jsonify({'error': 'Forbidden'}), 401
-    
+        commit()
+        # TG Notify
+        items_str = "\n".join([f"• {i['name']} x{i['qty']}" for i in final_items])
+        send_tg(f"🛍 <b>Новый заказ #{num}</b>\n\n👤 {d.get('name')}\n📞 {d.get('phone')}\n🏠 {d.get('address')}\n💰 {total} ₽\n\n🛒 Состав:\n{items_str}")
+        return jsonify({'ok': True, 'order_num': num})
+    t = request.cookies.get('sc_token'); u = _decode_token(t) if t else None
+    if not u or u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 401
     status = request.args.get('status', '')
     if status: rows = q("SELECT * FROM orders WHERE status=? ORDER BY created_at DESC", (status,)).fetchall()
     else: rows = q("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
@@ -256,8 +262,7 @@ def validate_promo():
 @app.route('/api/menu', methods=['GET', 'POST'])
 def menu_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}
-        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}; pm = "%s" if getattr(g, 'is_pg', False) else "?"
         sql = f"INSERT INTO menu (name, description, price, category, emoji, photo_url, badge) VALUES ({pm},{pm},{pm},{pm},{pm},{pm},{pm})"
         if getattr(g, 'is_pg', False): uid = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).fetchone()['id']
@@ -268,8 +273,7 @@ def menu_api():
 @app.route('/api/categories', methods=['GET', 'POST'])
 def cats_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}
-        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}; pc = "%s" if getattr(g, 'is_pg', False) else "?"
         if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO categories (name, emoji) VALUES ({pc},{pc}) RETURNING id", (d.get('name'), d.get('emoji'))).fetchone()['id']
         else: uid = q(f"INSERT INTO categories (name, emoji) VALUES ({pc},{pc})", (d.get('name'), d.get('emoji'))).lastrowid
@@ -279,9 +283,7 @@ def cats_api():
 @app.route('/api/settings', methods=['GET', 'POST'])
 def settings_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}
-        if u.get('role') != 'admin':
-            return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') != 'admin': return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}
         for k, v in d.items():
             if getattr(g,'is_pg',False): q("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (k, str(v)))
