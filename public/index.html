@@ -689,69 +689,62 @@
              <div class="adm-list" id="adminUsersContainer"></div>
           </div>
 
-          <!-- Tab: Settings (Expanded) -->
+          <!-- Tab: Settings (Comprehensive) -->
           <div class="atab-content" id="admSettings">
-            <div class="adm-card">
-              <div class="adm-card-header">
-                <h4>Глобальные настройки сайта</h4>
-              </div>
-              <form class="adm-form-grid" id="settingsForm">
-                <div class="adm-input-group">
-                  <label>Название заведения</label>
-                  <input type="text" name="site_name" class="adm-input">
-                </div>
-                <div class="adm-input-group">
-                  <label>Мин. сумма заказа (₽)</label>
-                  <input type="number" name="min_order" class="adm-input">
-                </div>
-                <div class="adm-input-group">
-                  <label>Стоимость доставки (₽)</label>
-                  <input type="number" name="delivery_fee" class="adm-input">
-                </div>
-                <div class="adm-input-group">
-                  <label>Бесплатная доставка от (₽)</label>
-                  <input type="number" name="free_delivery_from" class="adm-input">
-                </div>
-                <div class="adm-input-group">
-                  <label>Телефон для связи</label>
-                  <input type="text" name="phone" class="adm-input">
-                </div>
-                <div class="adm-input-group">
-                  <label>Режим работы (текст)</label>
-                  <input type="text" name="work_hours" class="adm-input">
-                </div>
-                <div class="adm-input-group" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 100px;">
-                  <input type="checkbox" name="is_open" id="isOpenCheck" style="width: 20px; height: 20px;">
-                  <label for="isOpenCheck" style="margin: 0; cursor: pointer;">Заведение открыто</label>
-                </div>
-                <div class="adm-input-group" style="flex-direction: row; align-items: center; gap: 10px;">
-                  <input type="checkbox" name="maintenance_mode" id="maintCheck" style="width: 20px; height: 20px;">
-                  <label for="maintCheck" style="margin: 0; cursor: pointer;">Режим тех. обслуживания (Maintenance)</label>
-                </div>
-                <div class="adm-btn-row" style="grid-column: span 2;">
-                  <button type="submit" class="btn-adm btn-adm-save">Сохранить все настройки</button>
-                </div>
-              </form>
-            </div>
-
-            <div class="adm-card" style="margin-top: 24px;">
-              <div class="adm-card-header">
-                <h4>Дизайн и Цвета</h4>
-              </div>
-              <div class="adm-form-grid">
-                <div class="adm-input-group">
-                  <label>Основной цвет (Yellow)</label>
-                  <input type="color" id="primaryColorPick" class="adm-input" value="#F5C518" style="height: 48px; padding: 4px;">
-                </div>
-                <div class="adm-input-group">
-                  <label>Темный режим по умолчанию</label>
-                  <div style="display:flex; gap:10px; margin-top:5px;">
-                     <button class="btn-adm btn-adm-cancel" style="flex:1;">Темный</button>
-                     <button class="btn-adm btn-adm-cancel" style="flex:1;">Светлый</button>
+            <form id="settingsForm">
+              <!-- Basic Config -->
+              <div class="adm-card">
+                <div class="adm-card-header"><h4>🏢 Основная информация и Лимиты</h4></div>
+                <div class="adm-form-grid">
+                  <div class="adm-input-group"><label>Название заведения</label><input type="text" name="site_name" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Мин. сумма заказа (₽)</label><input type="number" name="min_order" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Стоимость доставки (₽)</label><input type="number" name="delivery_fee" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Бесплатная доставка от (₽)</label><input type="number" name="free_delivery_from" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Телефон для связи</label><input type="text" name="phone" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Email для заказов</label><input type="email" name="email" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Адрес</label><input type="text" name="address" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Режим работы</label><input type="text" name="hours" class="adm-input"></div>
+                  <div class="adm-input-group" style="flex-direction:row;align-items:center;gap:10px;margin-top:20px;">
+                    <input type="checkbox" name="maintenance_mode" id="maintCheck" style="width:20px;height:20px;"><label for="maintCheck" style="margin:0;cursor:pointer;">Тех. обслуживание</label>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <!-- Hero & Stats -->
+              <div class="adm-card" style="margin-top:24px;">
+                <div class="adm-card-header"><h4>⚡ Главный экран и Статистика</h4></div>
+                <div class="adm-form-grid">
+                  <div class="adm-input-group"><label>Заголовок (Hero-1)</label><input type="text" name="hero_title" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Время доставки (Hero-2)</label><input type="text" name="hero_time" class="adm-input"></div>
+                  <div class="adm-input-group" style="grid-column:span 2;"><label>Подзаголовок</label><input type="text" name="hero_sub" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Стат: Заказов</label><input type="text" name="stat_orders" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Стат: Партнеров</label><input type="text" name="stat_partners" class="adm-input"></div>
+                  <div class="adm-input-group"><label>Стат: Рейтинг</label><input type="text" name="stat_rating" class="adm-input"></div>
+                </div>
+              </div>
+
+              <!-- About & Footer -->
+              <div class="adm-card" style="margin-top:24px;">
+                <div class="adm-card-header"><h4>📝 О нас и Подвал</h4></div>
+                <div class="adm-form-grid">
+                  <div class="adm-input-group" style="grid-column:span 2;"><label>Заголовок "О нас"</label><input type="text" name="about_title" class="adm-input"></div>
+                  <div class="adm-input-group" style="grid-column:span 2;"><label>Текст "О нас"</label><textarea name="about_text" class="adm-input" style="height:100px;padding:12px;"></textarea></div>
+                  <div class="adm-input-group" style="grid-column:span 2;"><label>Текст в подвале (Footer)</label><input type="text" name="footer" class="adm-input"></div>
+                </div>
+              </div>
+
+              <!-- Design -->
+              <div class="adm-card" style="margin-top:24px;">
+                <div class="adm-card-header"><h4>🎨 Дизайн системы</h4></div>
+                <div class="adm-form-grid">
+                  <div class="adm-input-group"><label>Акцентный цвет</label><input type="color" id="primaryColorPick" class="adm-input" value="#F5C518" style="height:48px;padding:4px;"></div>
+                </div>
+              </div>
+
+              <div class="adm-btn-row" style="margin-top:30px;position:sticky;bottom:0;background:rgba(241,245,249,0.9);padding:20px;backdrop-filter:blur(10px);border-radius:20px;box-shadow:0 -10px 20px rgba(0,0,0,0.05);">
+                <button type="submit" class="btn-adm btn-adm-save" style="width:100%;height:60px;font-size:1.1rem;">🚀 Применить и сохранить все изменения</button>
+              </div>
+            </form>
           </div>
 
         </div>
