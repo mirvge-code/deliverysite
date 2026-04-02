@@ -1,5 +1,5 @@
 """
-Сейчастье — бэкенд v4.8 (Telegram Notifications)
+Сейчастье — бэкенд v4.9 (CRITICAL BUGFIX: Syntax Error again)
 Flask + Multi-DB + TG Webhooks
 """
 
@@ -38,7 +38,6 @@ else: DB_PATH = None
 SECRET_KEY     = os.environ.get('SECRET_KEY', 'default-dev-key-change-me')
 JWT_EXPIRE_MIN = int(os.environ.get('JWT_EXPIRE_MIN', 1440))
 
-# Telegram Config
 TG_TOKEN   = os.environ.get('TG_TOKEN', '')
 TG_CHAT_ID = os.environ.get('TG_CHAT_ID', '')
 
@@ -133,18 +132,26 @@ def to_dict(row):
 # ─── Auth Helpers ────────────────────────────────────────────────────
 def _decode_token(t):
     try:
-        parts = t.split('.'); if len(parts) != 3 or parts[0] != 'local': return None
+        parts = t.split('.')
+        if len(parts) != 3 or parts[0] != 'local':
+            return None
         _, pl, sig = parts
-        if not hmac.compare_digest(sig, hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest()): return None
-        import base64; data = json.loads(base64.urlsafe_b64decode(pl + '=' * (4 - len(pl)%4)).decode())
-        if data['exp'] < time.time(): return None
+        if not hmac.compare_digest(sig, hmac.new(SECRET_KEY.encode(), pl.encode(), hashlib.sha256).hexdigest()):
+            return None
+        import base64
+        data = json.loads(base64.urlsafe_b64decode(pl + '=' * (4 - len(pl)%4)).decode())
+        if data['exp'] < time.time():
+            return None
         return data
-    except: return None
+    except:
+        return None
 
 def auth_required(f):
     @wraps(f)
     def w(*a, **k):
-        t = request.cookies.get('sc_token') or (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
+        cp = request.cookies.get('sc_token')
+        tp = (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
+        t = cp or tp
         u = _decode_token(t) if t else None
         if not u: return jsonify({'error': 'Unauthorized'}), 401
         g.user = u; return f(*a, **k)
@@ -154,7 +161,9 @@ def role_required(*roles):
     def dec(f):
         @wraps(f)
         def w(*a, **k):
-            t = request.cookies.get('sc_token') or (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
+            cp = request.cookies.get('sc_token')
+            tp = (request.headers.get('Authorization','')[7:] if request.headers.get('Authorization','').startswith('Bearer ') else None)
+            t = cp or tp
             u = _decode_token(t) if t else None
             if not u or u.get('role') not in roles: return jsonify({'error': 'Forbidden'}), 403
             g.user = u; return f(*a, **k)
@@ -262,7 +271,8 @@ def validate_promo():
 @app.route('/api/menu', methods=['GET', 'POST'])
 def menu_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}
+        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}; pm = "%s" if getattr(g, 'is_pg', False) else "?"
         sql = f"INSERT INTO menu (name, description, price, category, emoji, photo_url, badge) VALUES ({pm},{pm},{pm},{pm},{pm},{pm},{pm})"
         if getattr(g, 'is_pg', False): uid = q(sql + " RETURNING id", (d.get('name'), d.get('description'), d.get('price'), d.get('category'), d.get('emoji'), d.get('photo_url'), d.get('badge'))).fetchone()['id']
@@ -273,7 +283,8 @@ def menu_api():
 @app.route('/api/categories', methods=['GET', 'POST'])
 def cats_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}
+        if u.get('role') not in ['admin', 'manager']: return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}; pc = "%s" if getattr(g, 'is_pg', False) else "?"
         if getattr(g, 'is_pg', False): uid = q(f"INSERT INTO categories (name, emoji) VALUES ({pc},{pc}) RETURNING id", (d.get('name'), d.get('emoji'))).fetchone()['id']
         else: uid = q(f"INSERT INTO categories (name, emoji) VALUES ({pc},{pc})", (d.get('name'), d.get('emoji'))).lastrowid
@@ -283,7 +294,8 @@ def cats_api():
 @app.route('/api/settings', methods=['GET', 'POST'])
 def settings_api():
     if request.method == 'POST':
-        u = _decode_token(request.cookies.get('sc_token','')) or {}; if u.get('role') != 'admin': return jsonify({'error': 'Forbidden'}), 403
+        u = _decode_token(request.cookies.get('sc_token','')) or {}
+        if u.get('role') != 'admin': return jsonify({'error': 'Forbidden'}), 403
         d = request.json or {}
         for k, v in d.items():
             if getattr(g,'is_pg',False): q("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (k, str(v)))
